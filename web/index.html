@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/work.css">
+<link rel="stylesheet" href="/team.css">
 </head>
 <body>
 
@@ -106,6 +107,24 @@
       <h2 id="ag-title" class="lib-h">agents</h2>
       <div id="library-agents"></div>
     </section>
+  </main>
+</div>
+
+<div class="home" id="team-view" hidden>
+  <header class="home-head">
+    <a class="wordmark" href="#/">renga</a>
+    <span class="conn" title="connecting"><i></i><span class="sr">connecting</span></span>
+  </header>
+  <main class="home-body">
+    <div class="home-title">
+      <div>
+        <h1 id="tv-name"></h1>
+        <p id="tv-purpose" class="purpose"></p>
+        <p class="tv-meta"><a id="tv-repo" class="repo" target="_blank" rel="noopener"></a> · <span id="tv-count"></span></p>
+      </div>
+      <div class="home-actions"><a class="btn ghost-btn" href="#/">back to teams</a></div>
+    </div>
+    <div id="tv-rooms" class="teams"></div>
   </main>
 </div>
 
@@ -215,5 +234,6 @@
 <script src="/work.js"></script>
 <script src="/thinking.js"></script>
 <script src="/rooms.js"></script>
+<script src="/team.js"></script>
 </body>
 </html>

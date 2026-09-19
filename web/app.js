@@ -14,6 +14,7 @@ const el = (tag, cls, text) => {
 
 const state = {
   teams: [], rooms: [], agents: {}, room: null, since: 0, poll: null,
+  team: null,  // the team open at #/team/<id>
   events: {}, unread: {}, questions: {}, answered: new Set(), last: null,
   logfire: null,  // the logfire project a trace id links into, when there is one
 };
@@ -105,7 +106,10 @@ function renderHome() {
     const card = el('section', 'team-card');
     card.setAttribute('aria-labelledby', `team-${t.id}`);
     const head = el('div', 'team-card-head');
-    const h = el('h2', null, t.name); h.id = `team-${t.id}`;
+    const h = el('h2'); h.id = `team-${t.id}`;
+    const open = el('a', 'team-link', t.name);
+    open.href = `#/team/${t.id}`;
+    h.appendChild(open);
     const repo = el('a', 'repo', t.repo);
     repo.href = repoUrl(t.repo); repo.target = '_blank'; repo.rel = 'noopener';
     const del = el('button', 'del', 'delete');
@@ -345,8 +349,12 @@ function openRoom(id) {
 
 function route() {
   $('library').hidden = true;
+  $('team-view').hidden = true;
+  state.team = null;
   const m = location.hash.match(/^#\/room\/([\w-]+)$/);
+  const tm = location.hash.match(/^#\/team\/([\w-]+)$/);
   if (m && room(m[1])) openRoom(m[1]);
+  else if (tm && team(tm[1])) openTeam(tm[1]); // team.js
   else if (location.hash === '#/library') openLibrary(); // library.js
   else openHome();
 }
@@ -537,7 +545,8 @@ async function pollEvents() {
       state.since = Math.max(state.since, e.id);
       elsewhere = append(e) || elsewhere;
     }
-    if (!state.room) renderHome();
+    if (state.team) renderTeam(); // team.js
+    else if (!state.room) renderHome();
     else if (elsewhere) renderRooms();
   } catch (_) { /* setConn already shows it */ }
 }
