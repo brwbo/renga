@@ -2,25 +2,103 @@
 json on stdin, runs it, and prints each Line as one line of json on stdout
 for the host (sandbox.py) to post into renga.
 
+The whole job is one logfire span, a child of the hand-off when the job
+carries its traceparent. The logfire agent reads the spans as they end and
+posts each agent run into #logfire: who, how long, the tokens, errors.
+
     python -m renga.design.inside < job.json
 """
 
 import asyncio
 import sys
+from collections import defaultdict
 from collections.abc import AsyncIterator
 
-from .crew import Crew
+import logfire
+from logfire.propagate import attach_context
+from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
+from opentelemetry.trace import StatusCode
+
+from .crew import Crew, Line
 from .jobs import Job
 from .router import Router
 
+ROOM = "logfire"  # the room and the agent that posts the traces
+
+
+class Watch(SpanProcessor):
+    """Keeps every agent run that ends, by trace, for stream() to post."""
+
+    def __init__(self) -> None:
+        self.runs: dict[str, list[dict]] = defaultdict(list)
+
+    def on_end(self, span: ReadableSpan) -> None:
+        a = span.attributes or {}
+        if a.get("gen_ai.operation.name") != "invoke_agent":
+            return
+        role, _, step = str(a.get("agent_name", "agent")).partition(":")
+        self.runs[f"{span.context.trace_id:032x}"].append({
+            "role": role, "step": step or "work", "model": a.get("model_name"),
+            "secs": round((span.end_time - span.start_time) / 1e9, 1),
+            "input_tokens": a.get("gen_ai.aggregated_usage.input_tokens", 0),
+            "output_tokens": a.get("gen_ai.aggregated_usage.output_tokens", 0),
+            "error": span.status.description if span.status.status_code == StatusCode.ERROR else None,
+        })
+
+    def drain(self, trace_id: str) -> list[dict]:
+        return self.runs.pop(trace_id, [])
+
+
+WATCH = Watch()
+
+
+def _say(text: str, **data) -> str:
+    return Line(agent_id=ROOM, channel=ROOM, kind="chat", text=text, data=data).model_dump_json()
+
+
+def _run_line(room: str, trace_id: str, run: dict) -> str:
+    who = run["role"].replace("-", " ") + ("" if run["step"] == "work" else f" ({run['step']})")
+    if run["error"]:
+        return _say(f"#{room}: {who} failed after {run['secs']}s: {run['error']}",
+                    trace_id=trace_id, room=room, **run)
+    return _say(f"#{room}: {who} took {run['secs']}s, "
+                f"{run['input_tokens']:,} in / {run['output_tokens']:,} out tokens",
+                trace_id=trace_id, room=room, **run)
+
 
 async def stream(job: Job, model=None) -> AsyncIterator[str]:
+    room, runs = job.room, []
     if job.kind == "crew":
-        lines = Crew(job.team, room=job.room, model=model, ids=job.ids).run(job.brief)
+        lines = Crew(job.team, room=room, model=model, ids=job.ids).run(job.brief)
+        doing, started = "works on a brief", "started on a brief"
     else:
-        lines = Router(job.room, job.pm, job.targets, model=model).run(job.seen, job.new)
-    async for line in lines:
-        yield line.model_dump_json()
+        lines = Router(room, job.pm, job.targets, model=model).run(job.seen, job.new)
+        doing, started = "reads the meeting", "is reading the meeting"
+    with attach_context({"traceparent": job.traceparent} if job.traceparent else {}), \
+            logfire.span("#{room} " + doing, room=room, kind=job.kind) as span:
+        trace_id = f"{span.get_span_context().trace_id:032x}"
+        yield _say(f"#{room} {started}", trace_id=trace_id, room=room)
+
+        def watched() -> list[str]:
+            done = WATCH.drain(trace_id)
+            runs.extend(done)
+            return [_run_line(room, trace_id, r) for r in done]
+
+        try:
+            async for line in lines:
+                yield line.model_dump_json()
+                for out in watched():
+                    yield out
+        except Exception as err:
+            for out in watched():
+                yield out
+            yield _say(f"#{room} stopped: {err}", trace_id=trace_id, room=room, error=str(err))
+            raise
+        for out in watched():
+            yield out
+        tokens = sum(r["input_tokens"] + r["output_tokens"] for r in runs)
+        yield _say(f"#{room} finished: {len(runs)} agent runs, {tokens:,} tokens",
+                   trace_id=trace_id, room=room, runs=len(runs), tokens=tokens)
 
 
 async def main() -> None:
@@ -29,8 +107,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    import logfire
-
-    logfire.configure(send_to_logfire="if-token-present", console=False)
+    logfire.configure(send_to_logfire="if-token-present", console=False,
+                      additional_span_processors=[WATCH])
     logfire.instrument_pydantic_ai()
     asyncio.run(main())

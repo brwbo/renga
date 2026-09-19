@@ -24,6 +24,7 @@ class Job(BaseModel):
     team: Preset | None = None
     ids: dict[str, str] = Field(default_factory=dict)  # role -> agent id
     brief: str = ""
+    traceparent: str = ""  # the hand-off's trace, so the crew's run joins it
     # the router
     pm: str = ""
     targets: list[Target] = Field(default_factory=list)
@@ -45,7 +46,7 @@ def brains(room: dict, agents: list[dict]) -> Literal["crew", "router"] | None:
     return None
 
 
-def crew_job(room: dict, agents: list[dict], brief: str) -> Job:
+def crew_job(room: dict, agents: list[dict], brief: str, traceparent: str = "") -> Job:
     """The room's library agents as a crew, one per role, led by its lead."""
     members: dict[str, dict] = {}
     for a in agents:
@@ -54,7 +55,7 @@ def crew_job(room: dict, agents: list[dict], brief: str) -> Job:
     team = Preset(id=room["id"], does=room.get("purpose") or f"the work of #{room['name']}",
                   members=[Member(role=r, traits=a.get("traits") or []) for r, a in members.items()],
                   lead_role=_lead(room, agents)["template"])
-    return Job(kind="crew", room=room["id"], team=team, brief=brief,
+    return Job(kind="crew", room=room["id"], team=team, brief=brief, traceparent=traceparent,
                ids={r: a["id"] for r, a in members.items()})
 
 

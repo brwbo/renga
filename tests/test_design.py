@@ -150,7 +150,9 @@ def test_what_the_sandbox_prints_gets_posted_into_the_room(client):
     out = [o + "\n" for o in asyncio.run(printed())] + ["\n"]
     posted = pump(out, lambda path, body: client.post(path, json=body).raise_for_status())
     assert posted == len(out) - 1
-    assert len(client.get("/api/events?channel=brand-campaign").json()) == posted
+    room = client.get("/api/events?channel=brand-campaign").json()
+    watched = client.get("/api/events?channel=logfire").json()  # started, finished
+    assert len(room) + len(watched) == posted and len(watched) >= 2
     assert len(client.get("/api/questions").json()) == 1
 
 
@@ -171,3 +173,32 @@ def test_the_model_picks_the_key_and_the_host(monkeypatch):
     claude = sandbox.version()
     monkeypatch.setenv("RENGA_MODEL", "google:gemini-3.1-pro-preview")
     assert sandbox.version() != claude  # a new model gets a new sandbox
+
+
+def test_the_logfire_agent_posts_each_run_into_its_room(client):
+    import logfire
+
+    from renga.design.inside import WATCH, stream
+    from renga.design.jobs import crew_job
+    from renga.design.sandbox import pump
+
+    logfire.configure(send_to_logfire=False, console=False, additional_span_processors=[WATCH])
+    logfire.instrument_pydantic_ai()
+    task = client.post("/api/delegate", json={"room": "brand-campaign", "text": "a post"}).json()
+    parent = task["data"]["traceparent"]
+
+    room = next(r for r in client.get("/api/rooms").json() if r["id"] == "brand-campaign")
+    job = crew_job(room, client.get("/api/agents").json(), "a post", traceparent=parent)
+
+    async def printed():
+        return [out async for out in stream(job, model=scripted([]))]
+
+    pump(asyncio.run(printed()), lambda path, body: client.post(path, json=body).raise_for_status())
+    lines = client.get("/api/events?channel=logfire").json()
+    texts = [e["text"] for e in lines]
+    assert texts[0] == "pm handed a brief to #brand-campaign"
+    assert texts[1] == "#brand-campaign started on a brief"
+    assert any(t.startswith("#brand-campaign: creative director (plan) took") for t in texts)
+    assert texts[-1].startswith("#brand-campaign finished: 5 agent runs")
+    # the hand-off and the team's run are one trace
+    assert {e["data"]["trace_id"] for e in lines} == {parent.split("-")[1]}

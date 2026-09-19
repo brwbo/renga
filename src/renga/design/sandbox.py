@@ -174,7 +174,8 @@ def listen(renga: str, every: float = 2.0) -> None:
                 if (kind == "crew" and e["kind"] == "task" and e["to"] == room["lead"]
                         and (e.get("data") or {}).get("delegated_from")):
                     print(f"#{room['name']} got a brief, its crew is on it")
-                    start(crew_job(room, agents, e["text"]))
+                    start(crew_job(room, agents, e["text"],
+                                   (e.get("data") or {}).get("traceparent", "")))
                 elif kind == "router" and e["kind"] in ("chat", "answer") and e["from"] != room["lead"]:
                     m = meetings.setdefault(room["id"], Meeting(e["id"] - 1))
                     m.waiting, m.last = m.waiting + 1, time.monotonic()
