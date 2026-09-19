@@ -136,3 +136,13 @@ def test_the_meeting_reaches_the_design_team(client):
     assert done["from"] == "rowbo-design-creative-director" and done["kind"] == "announce_done"
     assert set(done["data"]["deliverables"]) == {"graphic-designer"}
     assert calls["calls"] == ["say", "say", "say", "say"]  # routing, plan, work, review
+
+
+def test_the_built_in_meeting_routes_to_the_design_rooms(client):
+    rooms, agents = client.get("/api/rooms").json(), client.get("/api/agents").json()
+    meeting = next(r for r in rooms if r["id"] == "main")
+    assert brains(meeting, agents) == "router"
+    client.post("/api/chat", json={"channel": "main", "text": "we need a launch post"}).raise_for_status()
+    job = router_job(meeting, rooms, agents, client.get("/api/events?channel=main").json(), since=0)
+    assert job.pm == "pm" and job.new == ["admin: we need a launch post"]
+    assert {t.room for t in job.targets} >= {"brand-campaign", "content-machine"}

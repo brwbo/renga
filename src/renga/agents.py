@@ -9,8 +9,9 @@ handing the work to that room's lead, who splits it across the room.
 An agent made from the agent library (design/roles.py) remembers which role
 it came from in `template`. Those are the ones with brains: pydantic ai
 agents hosted in modal sandboxes (design/sandbox.py). The design teams
-(design/presets.py) each get a room here, made from the library; the
-built-in meeting room's agents don't have brains yet. Workflows
+(design/presets.py) each get a room here, made from the library. In the
+built-in meeting room only the pm has brains, as a project manager that
+routes the meeting to the design rooms; the rest don't yet. Workflows
 (workflows.py) set up whole rooms of library agents in any team."""
 
 from typing import Literal
@@ -76,7 +77,7 @@ ROOMS: list[Room] = [
 ]
 
 ROSTER: list[Agent] = [
-    Agent(id="pm", name="pm", room="main", initials="pm",
+    Agent(id="pm", name="pm", room="main", initials="pm", template="project-manager",
           role="runs the meeting room, splits the work and delegates it to other rooms"),
     Agent(id="transcript", name="transcript", room="main", initials="tr", senses=["captions"],
           role="live speech to text, with speaker labels"),
