@@ -54,15 +54,47 @@ a chrome extension side panel that sits next to a google meet tab:
 - **end-of-meeting questions**: anything an agent got stuck on, asked once,
   after the call
 
+## run it
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python -m uvicorn renga.main:app --app-dir src --port 8020
+```
+
+open http://localhost:8020. to play a short scripted meeting into the room:
+
+```bash
+.venv/bin/python scripts/demo.py
+```
+
+the sprite sheet (every agent, every outfit, every state) is at
+http://localhost:8020/sprites/.
+
+## what's here
+
+- `src/renga/`: the room. an append-only event log (`db.py`), one emit path
+  that logs and fans out (`bus.py`), the event shape (`events.py`), the
+  roster with each agent's sprite (`agents.py`), the question queue
+  (`questions.py`) and the api (`main.py`)
+- `web/`: the chat. the newest line stands on stage in the console, older
+  lines drop back into the transcript, and questions show their options as
+  buttons
+- `web/sprites/`: the pixel-art generator. 32x48 people on a shared night
+  palette; every job wears its job
+
+the chat, the event log and the sprites are carried over from agentville.
+
 ## status
 
-early. the design is written up and no code has shipped yet.
+early. the room, the chat and the faces work; the agents don't have brains yet
+(`scripts/demo.py` speaks for them).
 
 build order:
 
-1. side panel showing a live transcript of a meet tab
-2. notes agent in the group chat
-3. one action worker end to end, with an approve button
-4. the clarification loop on that worker
-5. marketing workers, starting with video scripts
-6. visual agent
+1. pydantic ai brains for the agents, running on modal and posting through `/api/say`
+2. side panel showing a live transcript of a meet tab
+3. notes agent in the group chat
+4. one action worker end to end, with an approve button
+5. the clarification loop on that worker
+6. marketing workers, starting with video scripts
+7. visual agent

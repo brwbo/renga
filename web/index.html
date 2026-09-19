@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>renga</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header id="top">
+  <span class="wordmark">renga</span>
+  <span id="status">
+    <i class="dot off" id="s-dot"></i><span id="s-conn">connecting</span>
+  </span>
+</header>
+
+<div id="error" class="err hidden"></div>
+
+<section id="view-chat">
+  <div id="chat-head">
+    <span id="c-title">the room</span>
+    <span class="spacer"></span>
+    <div id="roster"></div>
+  </div>
+
+  <div id="log"></div>
+
+  <!-- the console: the line being said, the answers to it, and your prompt -->
+  <div id="console">
+    <div id="spotlight"></div>
+    <form id="composer">
+      <span class="prompt">&rsaquo;</span>
+      <input type="text" id="c-input" placeholder="say something to the room" autocomplete="off">
+      <button type="submit">send</button>
+    </form>
+  </div>
+</section>
+
+<script src="/sprites/palette.js"></script>
+<script src="/sprites/sprites.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

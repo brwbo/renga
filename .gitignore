@@ -22,3 +22,6 @@ extension/dist/
 .DS_Store
 .idea/
 .vscode/
+
+# local event log
+*.db

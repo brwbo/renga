@@ -1,0 +1,6 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pydantic>=2.9
+logfire[fastapi]>=5.1  # tracing. no LOGFIRE_TOKEN means it exports nothing
+httpx>=0.27            # scripts/demo.py, and the test client
+# pydantic-ai-slim and modal: added when the agents get brains
