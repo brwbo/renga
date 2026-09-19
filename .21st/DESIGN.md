@@ -13,10 +13,10 @@ Generated from project sources at 2026-09-19T10:34:43.320Z.
 
 ## Sources
 
-- Tokens: None detected
+- Tokens: web/style.css, extension/panel.css
 - Components: None detected
 - Assets: None detected
-- Instructions: None detected
+- Instructions: docs/chat-panel.md
 
 ## Components
 
@@ -25,27 +25,43 @@ Generated from project sources at 2026-09-19T10:34:43.320Z.
 
 ## Tokens
 
+- Colour mode: light and dark in extension/ (follows the system, data-theme overrides); dark only in web/
+
 ## Constraints
 
 ### Must
 
 - everything lowercase
-- one warm accent per surface: oxblood for clickable and team leads
 - no build step: plain html/css/js
-- visible focus ring (brass)
 - respect prefers-reduced-motion
-- tokens live in web/style.css :root: night #0e1012, raised #16191c, edge #23282c, oxblood #6e2222 (clickable, team leads), brass #c9a227 (small marks, focus), bone #e9e4da (text)
-- ibm plex sans + ibm plex mono; 4px radius; avatars are circles with 2 lowercase initials
+- avatars are circles with 2 lowercase initials
+- two surfaces, two looks: web/ keeps the dark brass palette; extension/ (the chat panel) uses the chat-panel system in docs/chat-panel.md
+- web/: oxblood #6e2222 for clickable and team leads, brass #c9a227 for small marks and focus, bone #e9e4da text on night #0e1012; ibm plex sans + mono; 4px radius
+- shared tokens live in web/style.css :root and are copied value for value into the FIRST :root block of extension/panel.css - tests/test_extension.py fails if they drift
+- chat panel tokens go on `body` in extension/panel.css, never in that shared :root
+- chat panel: light and dark both defined; light is the base, dark follows the system unless data-theme="light|dark" on <body> overrides
+- chat panel space --s0..--s6 = 2/4/8/16/32/64/128; controls snap to 16px marks, 24px avatars and icons, 32px buttons and input, 48px header
+- chat panel radius --r0/--r1/--r2 = 4/8/16: marks, then buttons and chips, then the panel, menu and segmented container
+- chat panel motion: three durations --t-fast/base/slow = 120/180/260ms, two curves - --ease everywhere, --ease-pop only on the attach menu and context chips
+- chat panel colour: group identity carries --research/--design across avatars, the rail, the send button and the destination line; --live is the record dot and nothing else
+- chat panel type: inter tight only, 13px base and 11.5px secondary, tabular numerals on times and counts
+- chat panel focus ring is the active group colour, not brass
 
 ### Avoid
 
 - pixel art / retro styling
 - gradients, glass, huge headlines
 - pure grey neutrals
-- pill buttons (except unread count)
+- pill buttons (except counts)
 - emoji as icons
+- space grotesk: review chrome in the prototypes only, it never ships
+- toasts and alerts in the chat panel - errors show in place, with the fix on them
+- ibm plex or the oxblood/brass palette inside extension/ - that's web/'s look
 
 ## Decisions
 
-- None recorded
-
+- the chat panel keeps renga's lowercase copy, so the briefing's sentence-case placeholder ships as "message, or paste a link…"
+- the panel's dark ramp is renga's own palette; only the faintest ink is lifted off --faint so timestamps clear 4.5:1
+- --live stays separate from --hot: --live is the record dot, --hot (as --danger) is errors
+- a tab is a room, so per-tab context scoping falls out of Event.channel
+- 384px is the design width, not a guarantee: chrome lets the user drag the side panel, so the panel sets min-width 320px instead

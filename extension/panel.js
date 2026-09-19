@@ -1,7 +1,11 @@
 // the side panel: one team's chat, narrowed to sit beside whatever you're
-// doing. What it reads depends on the team's agents: a screen agent gets a
-// button that reads the tab you're on, a captions agent hears meet calls.
-// Same event log and api as web/app.js; the layout is what changes.
+// doing. Five regions stack down it — header, tabs, live rail, thread,
+// composer — and only the thread scrolls (docs/chat-panel.md).
+//
+// What it reads depends on the team's agents: a captions agent hears meet
+// calls and puts the live rail on every tab, a screen agent adds "read this
+// tab" to the composer's attach menu. Same event log and api as web/app.js;
+// the layout is what changes.
 'use strict';
 
 const SERVER = 'http://localhost:8020';
@@ -18,6 +22,9 @@ const el = (tag, cls, text) => {
 const state = {
   teams: [], allRooms: [], rooms: [], agents: {}, team: null, room: null, since: 0,
   events: {}, unread: {}, questions: {}, answered: new Set(),
+  // The call the rail reports on: 'on' while captions are being captured,
+  // 'missing' in a meet tab with captions off, null when there's no call.
+  call: { status: null, since: 0, marks: 0 },
 };
 
 // ---- api --------------------------------------------------------------
@@ -49,56 +56,19 @@ function showError(message) {
   $('error').hidden = !message;
 }
 
-// ---- what this team's agents take in -----------------------------------
+// ---- people and rooms -------------------------------------------------
+const room = (id) => state.rooms.find((r) => r.id === id);
+const isLead = (id) => state.rooms.some((r) => r.lead === id);
+
 // The agent in the current team with a sense, if there is one.
 const senser = (sense) => Object.values(state.agents).find(
   (a) => a.senses?.includes(sense) && state.rooms.some((r) => r.id === a.room));
 
-function showListen(status) {
-  const who = senser('captions');
-  const where = who && `#${room(who.room).name}`;
-  const [cls, text] = {
-    on: ['on', `listening. meet's captions are going to ${where} as ${who?.name}.`],
-    missing: ['warn', `turn on captions in meet (cc button) so ${who?.name} can hear the call.`],
-  }[status] || ['', `open a google meet tab and ${who?.name} will listen.`];
-  const box = $('listen');
-  box.className = 'listen' + (cls ? ' ' + cls : '');
-  box.textContent = text;
-}
-
-function renderSenses() {
-  const hears = senser('captions');
-  const sees = senser('screen');
-  $('listen').hidden = !hears;
-  $('look').hidden = !sees;
-  $('deaf').hidden = Boolean(hears || sees);
-  if (sees) {
-    $('read-screen').textContent = `${sees.name}: read this tab`;
-    $('look-note').textContent = `posts to #${room(sees.room).name}`;
-  }
-  if (hears) checkListen();
-}
-
-async function checkListen() {
-  if (!senser('captions')) return;
-  if (!hasChrome) { showListen(null); return; }
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !/^https:\/\/meet\.google\.com\/.+/.test(tab.url || '')) { showListen(null); return; }
-  const { status } = await chrome.runtime.sendMessage({ type: 'get-captions-status', tabId: tab.id });
-  showListen(status || 'missing');
-}
-
-if (hasChrome) {
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === 'captions-status') checkListen();
-  });
-  chrome.tabs.onActivated.addListener(checkListen);
-  chrome.tabs.onUpdated.addListener((_, info) => { if (info.url || info.status === 'complete') checkListen(); });
-}
-
-// ---- people and rooms -------------------------------------------------
-const room = (id) => state.rooms.find((r) => r.id === id);
-const isLead = (id) => state.rooms.some((r) => r.lead === id);
+// Which group a room belongs to, for colour. Provisional: the room that
+// hears the call is the research group, everything else designs. The two
+// fixed tabs replace this when the panel stops showing n rooms.
+const groupOf = (id) => (Object.values(state.agents)
+  .some((a) => a.room === id && a.senses?.includes('captions')) ? 'research' : 'design');
 
 function nameOf(id, fallback) {
   if (id === 'admin') return 'you';
@@ -117,12 +87,13 @@ function avatar(id) {
 
 const clock = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-function renderRooms() {
-  const nav = $('rooms');
+function renderTabs() {
+  const nav = $('tabs');
   nav.replaceChildren();
   for (const t of state.rooms) {
-    const b = el('button', 'room-btn');
+    const b = el('button', 'tab');
     b.type = 'button';
+    b.dataset.group = groupOf(t.id);
     b.setAttribute('aria-current', String(t.id === state.room));
     b.appendChild(el('span', null, t.name));
     const n = state.unread[t.id] || 0;
@@ -134,7 +105,117 @@ function renderRooms() {
     b.addEventListener('click', () => openRoom(t.id));
     nav.appendChild(b);
   }
+  // A team with more rooms than the two groups scrolls: keep the one you're
+  // in where you can see it.
+  nav.querySelector('[aria-current="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
+
+// ---- the live rail -----------------------------------------------------
+// Is the call being captured, and has anything happened. It renders the same
+// on every tab, and leaves the dom entirely when there's no call.
+const mmss = (ms) => {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+};
+
+function renderRail() {
+  const slot = $('rail-slot');
+  const { status } = state.call;
+  if (!status) { slot.replaceChildren(); return; }
+
+  const rail = el('button', 'rail' + (status === 'on' ? '' : ' off'));
+  rail.type = 'button';
+  rail.appendChild(el('span', 'rec'));
+
+  if (status === 'on') {
+    const time = el('span', 'elapsed', mmss(Date.now() - state.call.since));
+    time.id = 'elapsed';
+    rail.appendChild(time);
+    const wave = el('span', 'wave');
+    wave.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 28; i++) {
+      const bar = el('i');
+      bar.style.animationDelay = `${(i % 7) * 0.12}s`;
+      wave.appendChild(bar);
+    }
+    rail.appendChild(wave);
+    // A count of findings, not of unread messages, so it doesn't reset when
+    // you visit the tab. Nothing emits highlights yet, so it stays hidden.
+    if (state.call.marks) rail.appendChild(el('span', 'marks', String(state.call.marks)));
+    // The waveform is decorative. Screen readers get the record state and
+    // the elapsed time as text instead.
+    rail.setAttribute('aria-label',
+      `recording, ${mmss(Date.now() - state.call.since)} elapsed. open the call.`);
+  } else {
+    rail.appendChild(el('span', 'note', `turn on captions (cc) so ${senser('captions')?.name} can hear the call`));
+  }
+
+  const home = senser('captions')?.room;
+  rail.addEventListener('click', () => {
+    if (home && home !== state.room) openRoom(home);
+    $('log').scrollTop = $('log').scrollHeight;
+  });
+  slot.replaceChildren(rail);
+}
+
+// Ticks the clock without rebuilding the rail, so the numbers don't jump.
+setInterval(() => {
+  const time = $('elapsed');
+  if (time && state.call.since) time.textContent = mmss(Date.now() - state.call.since);
+}, 1000);
+
+function setCall(status) {
+  if (status === state.call.status) return;
+  if (status === 'on' && !state.call.since) state.call.since = Date.now();
+  if (status !== 'on') state.call.since = 0;
+  state.call.status = status;
+  renderRail();
+}
+
+async function checkCall() {
+  if (!senser('captions')) { setCall(null); return; }
+  if (!hasChrome) { setCall(null); return; }
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || !/^https:\/\/meet\.google\.com\/.+/.test(tab.url || '')) { setCall(null); return; }
+  const { status } = await chrome.runtime.sendMessage({ type: 'get-captions-status', tabId: tab.id });
+  setCall(status || 'missing');
+}
+
+if (hasChrome) {
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === 'captions-status') checkCall();
+  });
+  chrome.tabs.onActivated.addListener(checkCall);
+  chrome.tabs.onUpdated.addListener((_, info) => { if (info.url || info.status === 'complete') checkCall(); });
+}
+
+// ---- the attach menu ---------------------------------------------------
+// What paste can't do. Only "this tab" so far, and only for a team with a
+// screen agent; github, figma, uploads and call moments come later.
+function openMenu(open) {
+  $('menu').hidden = !open;
+  $('attach').setAttribute('aria-expanded', String(open));
+}
+
+function renderAttach() {
+  const sees = senser('screen');
+  $('attach').hidden = !sees;
+  const menu = $('menu');
+  menu.replaceChildren();
+  if (!sees) { openMenu(false); return; }
+  const b = el('button', null, 'this tab');
+  b.type = 'button';
+  b.setAttribute('role', 'menuitem');
+  b.appendChild(el('span', 'note', `to #${room(sees.room).name}`));
+  b.addEventListener('click', () => { openMenu(false); readScreen(); });
+  menu.appendChild(b);
+}
+
+$('attach').addEventListener('click', () => openMenu($('menu').hidden));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('menu').hidden) { openMenu(false); $('attach').focus(); } });
+document.addEventListener('click', (e) => {
+  if (!$('menu').hidden && !e.target.closest('#menu, #attach')) openMenu(false);
+});
 
 // Whatever the page shows as text. Runs inside the tab, so it can only use
 // what's in scope there.
@@ -146,7 +227,7 @@ async function readScreen() {
   const who = senser('screen');
   if (!who) return;
   if (!hasChrome) { showError('reading the screen only works inside the chrome extension.'); return; }
-  const btn = $('read-screen');
+  const btn = $('attach');
   btn.disabled = true;
   try {
     // Asked the first time, from the click, so chrome shows its prompt once.
@@ -154,7 +235,6 @@ async function readScreen() {
     if (!granted) throw new Error('renga needs to see your tabs to read them. click again and allow it.');
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !/^https?:/.test(tab.url || '')) throw new Error("can't read this tab. open a normal web page and try again.");
-    $('look-note').textContent = 'reading…';
     const image = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 60 });
     let text = '';
     try {
@@ -172,11 +252,8 @@ async function readScreen() {
     showError(err.message);
   } finally {
     btn.disabled = false;
-    $('look-note').textContent = `posts to #${room(who.room).name}`;
   }
 }
-
-$('read-screen').addEventListener('click', readScreen);
 
 // ---- which team the panel shows ----------------------------------------
 function renderTeamPick() {
@@ -196,17 +273,32 @@ function chooseTeam(id) {
   state.rooms = state.allRooms.filter((r) => r.team === id);
   if (hasChrome) chrome.storage.local.set({ team: id }); // the worker reads it for captions
   renderTeamPick();
-  renderSenses();
+  renderAttach();
+  checkCall();
   openRoom(state.rooms[0].id);
 }
 
 $('team').addEventListener('change', (e) => chooseTeam(e.target.value));
 
+// Opening the panel in an ordinary tab: the whole ui works there, minus the
+// chrome apis, and it's the only place the 384px column is real.
+if (hasChrome) {
+  $('expand').hidden = false;
+  $('expand').addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('panel.html') }));
+}
+
 function openRoom(id) {
   state.room = id;
   state.unread[id] = 0;
-  $('c-input').placeholder = `message #${room(id).name}`;
-  renderRooms();
+  const group = groupOf(id);
+  document.body.dataset.group = group;
+  // Said twice, here and in send's colour: once the input can carry a
+  // codebase, a mis-send is expensive.
+  $('dest').replaceChildren(
+    document.createTextNode('goes to the '),
+    el('b', null, group === 'research' ? 'call agents' : 'design agents'),
+    document.createTextNode(` in #${room(id).name}.`));
+  renderTabs();
   renderLog();
 }
 
@@ -312,11 +404,16 @@ function renderLog() {
   const events = state.events[state.room] || [];
   if (!events.length) { log.appendChild(el('div', 'empty', 'nothing said in here yet.')); return; }
   let prev = null;
-  for (const e of events) { log.appendChild(render(e, prev)); prev = e; }
+  for (const e of events) {
+    const node = render(e, prev);
+    node.style.animation = 'none'; // a tab switch isn't agents answering
+    log.appendChild(node);
+    prev = e;
+  }
   log.scrollTop = log.scrollHeight;
 }
 
-function append(event) {
+function append(event, nth = 0) {
   const list = (state.events[event.channel] ||= []);
   const prev = list[list.length - 1];
   list.push(event);
@@ -327,7 +424,9 @@ function append(event) {
   const log = $('log');
   log.querySelector('.empty')?.remove();
   const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 100;
-  log.appendChild(render(event, prev));
+  const node = render(event, prev);
+  node.style.animationDelay = `${Math.min(nth, 4) * 60}ms`;
+  log.appendChild(node);
   if (nearBottom || event.from === 'admin') log.scrollTop = log.scrollHeight;
   return false;
 }
@@ -344,14 +443,19 @@ async function pollEvents() {
     if (!events.length) return;
     if (events.some((e) => e.data?.question_id && !state.questions[e.data.question_id])) await loadQuestions();
     let elsewhere = false;
+    let nth = 0;
     for (const e of events) {
       state.since = Math.max(state.since, e.id);
-      elsewhere = append(e) || elsewhere;
+      elsewhere = append(e, nth++) || elsewhere;
     }
-    if (elsewhere) renderRooms();
+    if (elsewhere) renderTabs();
     showError('');
   } catch (err) { showError(err.message); }
 }
+
+// ---- the composer ------------------------------------------------------
+// Send stays in a disabled style until there's something to send.
+$('c-input').addEventListener('input', (e) => { $('send').disabled = !e.target.value.trim(); });
 
 $('composer').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -359,10 +463,11 @@ $('composer').addEventListener('submit', async (e) => {
   const text = input.value.trim();
   if (!text) return;
   input.value = '';
+  $('send').disabled = true;
   try {
     await api('/api/chat', { method: 'POST', body: JSON.stringify({ text, channel: state.room }) });
     await pollEvents();
-  } catch (err) { showError(err.message); input.value = text; }
+  } catch (err) { showError(err.message); input.value = text; $('send').disabled = false; }
 });
 
 // ---- boot -------------------------------------------------------------

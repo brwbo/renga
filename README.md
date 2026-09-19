@@ -137,10 +137,10 @@ open http://localhost:8020. to play a short scripted meeting into the room:
 a side panel with one team's chat; pick the team at the top. what it reads
 depends on the agents that team has:
 
-- a **screen** agent (renga's `visual`) gets a **read this tab** button. it
-  sends a screenshot and the page's text to the server, and the agent posts
-  what it saw into its room. chrome asks once for permission to see your tabs
-  the first time you click it.
+- a **screen** agent (renga's `visual`) puts **this tab** in the composer's
+  `+` menu. it sends a screenshot and the page's text to the server, and the
+  agent posts what it saw into its room. chrome asks once for permission to
+  see your tabs the first time you use it.
 - a **captions** agent (renga's `transcript`) hears meet calls: meet's own
   live captions go into that agent's room.
 - a team with neither reads nothing.
@@ -157,10 +157,17 @@ or by hand:
 3. click the renga icon in the toolbar and pick a team. for captions, join a
    meet and turn them on (the cc button)
 
-the panel says whether it's hearing the call. chrome decides which side the
-panel opens on (settings, appearance, side panel position); an extension
-can't choose. while working on the panel you can open it in a normal tab at
-http://localhost:8020/extension/panel.html.
+while a call is being captured a live rail sits under the tabs, on every
+tab: a record dot, the elapsed time and a waveform, so you can see the
+listener is working without leaving the room you're in. the panel's look is
+its own, apart from the web app's: light and dark, following the system.
+[docs/chat-panel.md](docs/chat-panel.md) has the system and what's still to
+build.
+
+chrome decides which side the panel opens on (settings, appearance, side
+panel position); an extension can't choose. while working on the panel you
+can open it in a normal tab at http://localhost:8020/extension/panel.html,
+which is also the only place its 384px column is real.
 
 reading meet's captions depends on meet's page, which google changes without
 notice. it's the fast first version; capturing the tab's audio replaces it.
