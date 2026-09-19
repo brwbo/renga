@@ -14,7 +14,9 @@ function openTeam(id) {
   $('home').hidden = true;
   $('team-view').hidden = false;
   document.title = `${t.name} · renga`;
+  loadContext(t); // work.js
   renderTeam();
+  renderTeamContext();
 }
 
 function renderTeam() {
@@ -71,3 +73,14 @@ function roomCard(r, members) {
   return card;
 }
 
+
+// ---- the team's context: the doc every agent in the team reads -----------
+function renderTeamContext() {
+  if (!state.team || ctx.team !== state.team) return;
+  const text = ctx.text.trim();
+  $('tv-context-text').hidden = !text;
+  $('tv-context-text').textContent = text;
+  $('tv-context-empty').hidden = !!text;
+  $('tv-context-edit').textContent = text ? 'edit' : 'add context';
+}
+$('tv-context-edit').addEventListener('click', openContext); // work.js

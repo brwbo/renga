@@ -31,3 +31,19 @@
 .team-card-link:has(.team-link:focus-visible) { outline: 2px solid var(--group); outline-offset: 2px; }
 .team-card-link .del, .team-card-link .confirm { position: relative; z-index: 1; }
 .team-card-link .team-purpose { margin-bottom: 8px; }
+
+/* the team's context doc, on the team page */
+.tv-context {
+  margin-top: 28px; padding: 18px; border: 1px solid var(--line);
+  border-radius: var(--r2); background: var(--raised);
+}
+.tv-context-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.tv-context h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.tv-context .purpose { margin: 4px 0 0; font-size: 11.5px; color: var(--ink-2); }
+.tv-context-text {
+  margin: 14px 0 0; max-height: 240px; overflow-y: auto; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: var(--r1); background: var(--surface); color: var(--ink);
+  font: 400 12px/1.55 ui-monospace, 'IBM Plex Mono', monospace; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.tv-context .m-none { margin: 14px 0 0; font-size: 11.5px; color: var(--ink-3); }
+.tv-context + .teams { margin-top: 16px; }

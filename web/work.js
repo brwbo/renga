@@ -21,6 +21,7 @@ function showContextState() {
   const lines = ctx.text ? ctx.text.split('\n').filter((l) => l.trim()).length : 0;
   $('context-state').textContent = lines ? `${lines} line${lines === 1 ? '' : 's'}` : 'add';
   $('context-open').classList.toggle('empty', !lines);
+  renderTeamContext(); // team.js: the team page shows the doc too
 }
 
 function contextError(msg) {
@@ -28,12 +29,13 @@ function contextError(msg) {
   $('context-error').hidden = !msg;
 }
 
-$('context-open').addEventListener('click', () => {
+function openContext() {
   $('context-text').value = ctx.text;
   contextError('');
   $('context-dialog').showModal();
   $('context-text').focus();
-});
+}
+$('context-open').addEventListener('click', openContext);
 $('context-cancel').addEventListener('click', () => $('context-dialog').close());
 
 $('context-file').addEventListener('change', async (e) => {
