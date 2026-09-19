@@ -98,3 +98,7 @@
 }
 .room > .thinking { padding: 4px 28px 8px; }
 @media (max-width: 760px) { .room > .thinking { padding: 4px 16px 8px; } }
+
+/* "+ new room" under the rooms list (rooms.js), the same look as "+ add agent" */
+.add-room { margin: 6px 0 0; }
+.room-form { margin-top: 6px; }

@@ -128,6 +128,20 @@
 
     <h2 class="label">rooms</h2>
     <nav id="rooms" class="rooms"></nav>
+    <button type="button" id="add-room" class="add-agent add-room" aria-expanded="false" aria-controls="room-form">+ new room</button>
+    <form id="room-form" class="agent-form room-form" hidden novalidate>
+      <label>name
+        <input name="name" maxlength="40" placeholder="marketing" autocomplete="off" spellcheck="false">
+      </label>
+      <label>what it's for <span class="opt">optional</span>
+        <input name="purpose" maxlength="200" placeholder="campaigns, copy and social" autocomplete="off">
+      </label>
+      <p id="room-error" class="form-err" role="alert" hidden></p>
+      <div class="form-actions">
+        <button type="submit" class="btn primary">add room</button>
+        <button type="button" id="cancel-room" class="btn ghost">cancel</button>
+      </div>
+    </form>
   </aside>
 
   <main class="room">
@@ -200,5 +214,6 @@
 <script src="/library.js"></script>
 <script src="/work.js"></script>
 <script src="/thinking.js"></script>
+<script src="/rooms.js"></script>
 </body>
 </html>
