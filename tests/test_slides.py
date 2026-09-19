@@ -47,7 +47,7 @@ def test_the_visualiser_writes_down_everything_on_a_slide():
     [line] = asyncio.run(go())
     assert line.text == "slide 2: q3 revenue, up 18%"
     assert line.data == {"slide": 2, "notes": "# q3 revenue\n\n- up 18% on q2\n- emea 41%",
-                         "deliverable": "# q3 revenue\n\n- up 18% on q2\n- emea 41%"}
+                         "deliverable": "# q3 revenue\n\n- up 18% on q2\n- emea 41%", "shown": "slide 2"}
     assert any("this is slide 2" in p for p in prompts)
 
 
@@ -74,4 +74,16 @@ def test_the_pm_has_every_slide_shown(client):
         return [line async for line in router.run(job.seen, job.new, job.slides)]
 
     asyncio.run(go())
-    assert any("the slides presented in this meeting" in p and "up 18%" in p for p in prompts)
+    assert any("what's been shown on screen in this meeting" in p and "up 18%" in p for p in prompts)
+
+
+def test_the_visualiser_never_makes_material():
+    from renga.design.visualiser import Seen
+    assert set(Seen.model_fields) == {"say", "notes"}  # no files, no diagram: nothing to post but notes
+    prompts = []
+    eyes = Visualiser("main", "visual", model=answering({"say": "x", "notes": "x"}, prompts))
+
+    async def go():  # nothing on screen to look at: it doesn't run at all
+        return [line async for line in eyes.run(["person: make me a linkedin post"], [], None)]
+
+    assert asyncio.run(go()) == [] and prompts == []

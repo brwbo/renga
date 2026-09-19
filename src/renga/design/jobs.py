@@ -114,15 +114,22 @@ def router_job(room: dict, rooms: list[dict], agents: list[dict],
 
 
 def slides(room: dict, agents: list[dict], events: list[dict], most: int = 40) -> list[str]:
-    """Every slide shown in the meeting, as the visualiser wrote it down, in
-    order. A slide shown again keeps its latest notes."""
+    """Everything shown on screen in the meeting, as the visualiser wrote it
+    down: each slide of a presentation, in slide order, then each other look
+    at the screen, in the order it came. A slide shown again keeps its
+    latest notes."""
     eyes = aide(room, agents, "visualiser")
-    read: dict[int, str] = {}
+    deck: dict[int, str] = {}
+    looks: list[str] = []
     for e in events:
         d = e.get("data") or {}
-        if eyes and e["channel"] == room["id"] and e["from"] == eyes["id"] and d.get("slide") and d.get("notes"):
-            read[d["slide"]] = d["notes"]
-    return [f"slide {n}:\n{read[n]}" for n in sorted(read)][-most:]
+        if not (eyes and e["channel"] == room["id"] and e["from"] == eyes["id"] and d.get("notes")):
+            continue
+        if d.get("slide"):
+            deck[d["slide"]] = d["notes"]
+        else:
+            looks.append(f"on screen ({d.get('shown') or 'a shared tab'}):\n{d['notes']}")
+    return ([f"slide {n}:\n{deck[n]}" for n in sorted(deck)] + looks)[-most:]
 
 
 def notes_job(room: dict, agents: list[dict], events: list[dict], since: int) -> Job:

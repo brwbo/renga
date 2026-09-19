@@ -70,7 +70,7 @@ def test_the_note_taker_keeps_the_notes(client):
     assert client.get("/api/events?channel=rowbo-meeting").json()[-1]["id"] == card["id"]
 
 
-def test_the_visualiser_sees_the_screen_and_draws(client):
+def test_the_visualiser_writes_down_the_screen_and_makes_nothing(client):
     room, rooms, agents, log = meeting(client, ["sam: first legal signs off, then brand, then we post"])
     r = client.post("/api/screen", json={"agent_id": "rowbo-meeting-visualiser", "url": "https://x.test/q3",
                                         "title": "q3 plan", "text": "revenue 4.2m",
@@ -86,18 +86,17 @@ def test_the_visualiser_sees_the_screen_and_draws(client):
     assert job.new == ["listener: sam: first legal signs off, then brand, then we post"]
 
     seen: list = []
-    run_job(client, job, answering({"say": "the sign-off, in order",
-                                    "diagram": {"name": "sign-off.svg", "content": SVG}}, seen))
+    run_job(client, job, answering({"say": "the q3 plan", "notes": "# q3 plan\n\n- revenue 4.2m"}, seen))
     assert any(isinstance(p, BinaryContent) for p in seen[0])  # it saw the screenshot
     assert any("revenue 4.2m" in p for p in seen[0] if isinstance(p, str))
-    drawn = client.get("/api/events?channel=rowbo-meeting").json()[-1]
-    assert drawn["from"] == "rowbo-meeting-visualiser" and drawn["text"] == "the sign-off, in order"
-    assert client.get(drawn["data"]["files"][0]["url"]).text == SVG
+    wrote = client.get("/api/events?channel=rowbo-meeting").json()[-1]
+    assert wrote["from"] == "rowbo-meeting-visualiser" and wrote["text"] == "the q3 plan"
+    assert wrote["data"]["notes"] == "# q3 plan\n\n- revenue 4.2m" and "files" not in wrote["data"]
 
-    # its diagram is its own, not the meeting: the project manager doesn't read it
+    # what it wrote isn't the meeting, it's what the project manager briefs with
     log = client.get("/api/events?channel=rowbo-meeting").json()
-    assert router_job(room, rooms, agents, log, since=drawn["id"] - 1).new == []
-    assert eyes_job(room, agents, log, since=drawn["id"] - 1).new == []
+    job = router_job(room, rooms, agents, log, since=wrote["id"] - 1)
+    assert job.new == [] and job.slides == ["on screen (q3 plan):\n# q3 plan\n\n- revenue 4.2m"]
 
 
 def test_the_visualiser_only_talks_when_it_has_something(client):

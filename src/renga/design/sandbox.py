@@ -325,7 +325,7 @@ class Meeting:
         self.waiting = 0     # lines said since then
         self.last = 0.0      # when the last one was said
         self.busy = False
-        self.look: dict | None = None  # the visualiser's: a look at the screen to go on now
+        self.looks: list[dict] = []  # the visualiser's: looks at the screen, oldest first, none skipped
         self.asked = False  # the project manager's: the person said something, answer now
 
 
@@ -380,22 +380,21 @@ def listen(renga: str, every: float = 2.0) -> None:
                     eyes = aide(room, agents, "visualiser")
                     if eyes and e["kind"] == "tool_result" and e["from"] == eyes["id"]:
                         heard(room["id"], "eyes", e["id"])
-                        meetings[(room["id"], "eyes")].look = e
+                        meetings[(room["id"], "eyes")].looks.append(e)
                 elif kind == "router" and e["kind"] in ("chat", "answer") and e["from"] != room["lead"]:
                     heard(room["id"], "pm", e["id"])
                     if e["from"] == "admin":  # the person spoke: the pm answers now
                         meetings[(room["id"], "pm")].asked = True
-                    for who, role in (("notes", "note-taker"), ("eyes", "visualiser")):
-                        if aide(room, agents, role):
-                            heard(room["id"], who, e["id"])
+                    if aide(room, agents, "note-taker"):  # the visualiser only wakes on a look
+                        heard(room["id"], "notes", e["id"])
             for (room_id, who), m in meetings.items():
-                if room_id not in by_id or not m.waiting or m.busy:
+                if room_id not in by_id or m.busy or not (m.looks if who == "eyes" else m.waiting):
                     continue
                 room = by_id[room_id]
                 if who == "pm" and m.asked:
                     ready = True
-                elif who == "eyes" and m.look:
-                    ready = True
+                elif who == "eyes":
+                    ready = True  # a look: it's read straight away, one at a time, in order
                 else:
                     ready = (time.monotonic() - m.last >= QUIET
                              or m.waiting >= (PM_BACKLOG if who == "pm" else BACKLOG))
@@ -403,15 +402,14 @@ def listen(renga: str, every: float = 2.0) -> None:
                     continue
                 log = client.get("/api/events", params={"channel": room_id}).json()
                 if who in ("notes", "eyes") and not aide(room, agents, "note-taker" if who == "notes" else "visualiser"):
-                    m.waiting, m.look = 0, None  # the aide has left the room
+                    m.waiting, m.looks = 0, []  # the aide has left the room
                     continue
                 if who == "notes":
                     job = notes_job(room, agents, log, m.routed)
                     print(f"#{room['name']}: the note-taker is reading {len(job.new)} lines")
                 elif who == "eyes":
-                    job = eyes_job(room, agents, log, m.routed, look(client, m.look) if m.look else None)
-                    print(f"#{room['name']}: the visualiser is " + ("looking at the screen" if m.look
-                          else f"reading {len(job.new)} lines"))
+                    job = eyes_job(room, agents, log, m.routed, look(client, m.looks.pop(0)))
+                    print(f"#{room['name']}: the visualiser is looking at the screen")
                 else:
                     job = router_job(room, rooms, agents, log, m.routed)
                     print(f"#{room['name']}: the project manager is reading {len(job.new)} lines")
@@ -419,7 +417,6 @@ def listen(renga: str, every: float = 2.0) -> None:
                 m.routed, m.waiting, m.asked = max([since, *(e["id"] for e in log)]), 0, False
                 if not job.new and not job.screen:
                     continue
-                m.look = None
                 m.busy = True
                 start(prepare(client, job, room, rooms), done=lambda m=m: setattr(m, "busy", False))
             time.sleep(every)
