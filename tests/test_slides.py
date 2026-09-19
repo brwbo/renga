@@ -45,9 +45,8 @@ def test_the_visualiser_writes_down_everything_on_a_slide():
         return [line async for line in eyes.run([], [], screen) if line.kind != "thinking"]
 
     [line] = asyncio.run(go())
-    assert line.text == "slide 2: q3 revenue, up 18%"
-    assert line.data == {"slide": 2, "notes": "# q3 revenue\n\n- up 18% on q2\n- emea 41%",
-                         "deliverable": "# q3 revenue\n\n- up 18% on q2\n- emea 41%", "shown": "slide 2"}
+    assert line.text == "slide 2: q3 revenue, up 18%\n\n# q3 revenue\n\n- up 18% on q2\n- emea 41%"
+    assert line.data == {"slide": 2, "notes": "# q3 revenue\n\n- up 18% on q2\n- emea 41%", "shown": "slide 2"}
     assert any("this is slide 2" in p for p in prompts)
 
 

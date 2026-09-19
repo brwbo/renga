@@ -481,7 +481,7 @@ function renderLog() {
     return;
   }
   let prev = null;
-  for (const e of events) {
+  for (const e of events.filter(shown)) {
     log.appendChild(render(e, prev));
     prev = e;
   }
@@ -489,6 +489,10 @@ function renderLog() {
 }
 
 // Consecutive lines from one speaker within two minutes sit under one name.
+// A look at the screen stays out of the chat: the visualiser says what was
+// on it, and the screenshot is only for the agents.
+const shown = (event) => !(event.kind === 'tool_result' && event.data?.frame);
+
 function render(event, prev) {
   if (!SPOKEN.has(event.kind)) return statusLine(event);
   const continues = prev && SPOKEN.has(prev.kind) && prev.from === event.from
@@ -499,8 +503,9 @@ function render(event, prev) {
 
 function append(event) {
   const list = (state.events[event.channel] ||= []);
-  const prev = list[list.length - 1];
+  const prev = list.filter(shown).at(-1);
   list.push(event);
+  if (!shown(event)) return false;
   if (event.channel !== state.room) {
     state.unread[event.channel] = (state.unread[event.channel] || 0) + 1;
     return true;

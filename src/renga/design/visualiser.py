@@ -46,10 +46,12 @@ class Screen(BaseModel):
 class Seen(BaseModel):
     say: str = Field(default="", description="one line to the room: what's on screen and its point "
                                               "(for a slide: its number and title)")
-    notes: str = Field(default="", description="everything on screen, in markdown: the title, every "
-                                                "line of text, every number and label exactly as "
-                                                "shown, and what each chart, table or picture shows. "
-                                                "only what's there: nothing made up, nothing drafted")
+    notes: str = Field(default="", description="everything on screen, as plain text for a chat "
+                                                "message (lines starting '- ', no # headings, no ** "
+                                                "bold): the title, every line of text, every number "
+                                                "and label exactly as shown, and what each chart, "
+                                                "table or picture shows. only what's there: nothing "
+                                                "made up, nothing drafted")
 
 
 class Visualiser:
@@ -89,7 +91,9 @@ class Visualiser:
         if not (out.notes or out.say):
             return
         label = f"slide {screen.slide}" if screen.slide else (screen.title or "the screen")
-        data = {"notes": out.notes, "deliverable": out.notes, "shown": label}
+        # Everything it read goes in the message itself: the screenshot isn't shown in the chat.
+        data = {"notes": out.notes, "shown": label}
         if screen.slide:
             data["slide"] = screen.slide
-        yield Line(agent_id=self.me, channel=self.room, kind="chat", text=out.say or label, data=data)
+        text = "\n\n".join(t for t in (out.say or label, out.notes) if t)
+        yield Line(agent_id=self.me, channel=self.room, kind="chat", text=text, data=data)
