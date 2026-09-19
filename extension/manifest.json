@@ -29,7 +29,8 @@
         "https://meet.google.com/*"
       ],
       "js": [
-        "captions.js"
+        "captions.js",
+        "present.js"
       ],
       "run_at": "document_idle"
     }

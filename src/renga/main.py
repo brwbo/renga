@@ -349,6 +349,7 @@ class ScreenIn(BaseModel):
     text: str = Field(default="", max_length=20000)
     image: str | None = Field(default=None, max_length=4_000_000)
     because: str = Field(default="", max_length=200)  # the words on the call that asked for this look
+    slide: int | None = Field(default=None, ge=1, le=999)  # its number, when it's a presentation's slide
 
 
 def save_frame(data_url: str) -> str:
@@ -415,7 +416,10 @@ async def screen(body: ScreenIn) -> dict:
     if body.image:
         data["frame"] = save_frame(body.image)
     said = f"read the screen: {body.title or body.url}"
-    if body.because:
+    if body.slide:
+        data["slide"] = body.slide
+        said = f"saw slide {body.slide} of the presentation"
+    elif body.because:
         data["because"] = body.because
         said = f'looked at the screen, because someone said "{body.because}"'
     return await emit(who.room, "tool_result", from_=who.id, text=said, data=data)

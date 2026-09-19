@@ -156,7 +156,7 @@ def look(client, event: dict) -> Screen:
     screenshot, which the sandbox can't fetch from renga itself."""
     d = event.get("data") or {}
     screen = Screen(url=d.get("url", ""), title=d.get("title", ""), text=d.get("text", ""),
-                    because=d.get("because", ""))
+                    because=d.get("because", ""), slide=d.get("slide") or 0)
     if d.get("frame") and (r := client.get(d["frame"])).is_success:
         screen.image = base64.b64encode(r.content).decode()
         screen.media_type = r.headers.get("content-type", "image/jpeg").split(";")[0]

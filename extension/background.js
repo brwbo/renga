@@ -166,3 +166,6 @@ chrome.tabs.onRemoved.addListener((tabId) => { setCaptionState(tabId, null); });
 chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (info.url && !MEETING.test(info.url)) setCaptionState(tabId, null); // left the call
 });
+
+// every slide of a presentation, for the visualiser (slides.js)
+importScripts('slides.js');

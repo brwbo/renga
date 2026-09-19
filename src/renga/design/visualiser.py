@@ -27,11 +27,16 @@ class Screen(BaseModel):
     image: str = ""        # base64
     media_type: str = ""   # image/jpeg or image/png
     because: str = ""      # the words on the call that asked for the look
+    slide: int = 0         # which slide of a presentation this is, when someone's presenting
 
 
 class Seen(BaseModel):
     say: str = Field(default="", description="one or two lines to the room: what's on screen, or what "
                                               "the diagram shows. empty when there's nothing to say")
+    notes: str = Field(default="", description="only for a slide: everything on it, in markdown: "
+                                                "the title, every line of text, every number and "
+                                                "label exactly as shown, and what each chart, table "
+                                                "or diagram shows. empty for anything else")
     diagram: File | None = Field(default=None, description="a diagram of what the meeting just described, "
                                                            "as one self-contained svg. none when nothing "
                                                            "said has a shape worth drawing")
@@ -52,7 +57,11 @@ class Visualiser:
                          "otherwise say nothing. a diagram is one svg: a viewBox, boxes and "
                          "arrows, readable text, inline styles, no scripts, no images, no "
                          "outside links. lines from `you` are what you've already posted; "
-                         "don't draw the same thing twice." + about(context))
+                         "don't draw the same thing twice.\n\n## a presentation\n\nwhen the look "
+                         "is a slide, take in all of it: write everything on it in `notes`, so "
+                         "anyone who missed it, and the project manager, has the whole slide. "
+                         "`say` is then one line: the slide's number, its title and its point."
+                         + about(context))
 
     async def run(self, seen: list[str], new: list[str], screen: Screen | None = None) -> AsyncIterator[Line]:
         prompt = ("earlier in the meeting:\n\n" + ("\n".join(seen) or "(nothing)")
@@ -60,6 +69,8 @@ class Visualiser:
         parts: list = [prompt]
         if screen:
             look = f"what's on screen now: {screen.title or '(untitled)'} ({screen.url})"
+            if screen.slide:
+                look += f". someone is presenting: this is slide {screen.slide}"
             if screen.because:
                 look += f'. you looked because someone said "{screen.because}"'
             parts.append(look + "\n\nthe page's text:\n\n" + (screen.text or "(none)"))
@@ -67,7 +78,11 @@ class Visualiser:
                 parts.append(BinaryContent(base64.b64decode(screen.image), media_type=screen.media_type))
         yield Line(agent_id=self.me, channel=self.room, kind="thinking", text="")
         out = (await self.agent.run(parts)).output
-        if out.diagram:
+        if screen and screen.slide and out.notes:
+            yield Line(agent_id=self.me, channel=self.room, kind="chat",
+                       text=out.say or f"slide {screen.slide}",
+                       data={"slide": screen.slide, "notes": out.notes, "deliverable": out.notes})
+        elif out.diagram:
             yield Line(agent_id=self.me, channel=self.room, kind="chat",
                        text=out.say or "a diagram of what was just described",
                        data={"files": [out.diagram.model_dump()]})

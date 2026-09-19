@@ -48,6 +48,7 @@ class Job(BaseModel):
     targets: list[Target] = Field(default_factory=list)
     seen: list[str] = Field(default_factory=list)
     new: list[str] = Field(default_factory=list)
+    slides: list[str] = Field(default_factory=list)  # what the visualiser read off each slide shown
     # the aides
     me: str = ""
     notes: str = ""               # the note-taker's last notes
@@ -109,7 +110,19 @@ def router_job(room: dict, rooms: list[dict], agents: list[dict],
                      skip=aides(room, agents))
     return Job(kind="router", room=room["id"], pm=room["lead"], targets=targets,
                seen=[s for i, _, s in lines if i <= since][-40:],
-               new=[s for i, _, s in lines if i > since])
+               new=[s for i, _, s in lines if i > since], slides=slides(room, agents, events))
+
+
+def slides(room: dict, agents: list[dict], events: list[dict], most: int = 40) -> list[str]:
+    """Every slide shown in the meeting, as the visualiser wrote it down, in
+    order. A slide shown again keeps its latest notes."""
+    eyes = aide(room, agents, "visualiser")
+    read: dict[int, str] = {}
+    for e in events:
+        d = e.get("data") or {}
+        if eyes and e["channel"] == room["id"] and e["from"] == eyes["id"] and d.get("slide") and d.get("notes"):
+            read[d["slide"]] = d["notes"]
+    return [f"slide {n}:\n{read[n]}" for n in sorted(read)][-most:]
 
 
 def notes_job(room: dict, agents: list[dict], events: list[dict], since: int) -> Job:

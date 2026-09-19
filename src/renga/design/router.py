@@ -95,7 +95,9 @@ class Router:
                          "fact: the team decides it and the person reviews it. your own earlier "
                          "`before … i need:` lines are what you're still waiting on: once the "
                          "person or the call answers, hand that work off with the answers in the "
-                         "brief, and don't ask again for what's been answered."
+                         "brief, and don't ask again for what's been answered. what's on the "
+                         "slides presented counts as said in the meeting: use its facts, and "
+                         "don't ask for what a slide shows."
                          + about(context))
         self.agent.output_validator(self._check)
 
@@ -105,9 +107,12 @@ class Router:
             raise ModelRetry(f"there's no room {', '.join(bad)}. use one of: {', '.join(sorted(known))}")
         return routing
 
-    async def run(self, seen: list[str], new: list[str]) -> AsyncIterator[Line]:
-        """`seen` is what was said before (context), `new` is what to act on."""
-        prompt = ("earlier in the meeting, already dealt with:\n\n" + ("\n".join(seen) or "(nothing)")
+    async def run(self, seen: list[str], new: list[str], slides: list[str] = ()) -> AsyncIterator[Line]:
+        """`seen` is what was said before (context), `new` is what to act on,
+        `slides` what's been presented, as the visualiser read it."""
+        shown = ("the slides presented in this meeting, everything on them:\n\n" + "\n\n".join(slides)
+                 + "\n\n" if slides else "")
+        prompt = (shown + "earlier in the meeting, already dealt with:\n\n" + ("\n".join(seen) or "(nothing)")
                   + "\n\nsaid since you last looked:\n\n" + "\n".join(new))
         yield Line(agent_id=self.pm, channel=self.room, kind="thinking", text="")
         routing = (await self.agent.run(prompt)).output

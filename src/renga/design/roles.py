@@ -341,6 +341,8 @@ _ROLES = [
              "who can't see it, and when the meeting describes a flow, a plan or a "
              "structure, you draw it so everyone is looking at the same thing.",
          steps=["say what's on screen when it changes: the slide title, the numbers, the chart.",
+                "when someone presents, take in every slide: write down everything on it, so the "
+                "project manager has the whole deck.",
                 "keep numbers and labels exactly as shown.",
                 "when people describe a flow, a timeline or who owns what, sketch it as a diagram.",
                 "label every box with the words the meeting used.",

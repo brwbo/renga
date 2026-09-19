@@ -85,7 +85,8 @@ async def stream(job: Job, model=None) -> AsyncIterator[str]:
         lines = Visualiser(room, job.me, model=model, context=job.context).run(job.seen, job.new, job.screen)
         doing, started = "looks", "is looking"
     else:
-        lines = Router(room, job.pm, job.targets, model=model, context=job.context).run(job.seen, job.new)
+        lines = Router(room, job.pm, job.targets, model=model, context=job.context).run(
+            job.seen, job.new, job.slides)
         doing, started = "reads the meeting", "is reading the meeting"
     with attach_context({"traceparent": job.traceparent} if job.traceparent else {}), \
             logfire.span("#{room} " + doing, room=room, kind=job.kind) as span:
