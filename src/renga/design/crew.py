@@ -131,9 +131,10 @@ chat. the work itself goes in `deliverable`, and what you made goes in
 page, email or layout as one html file, copy as markdown. nothing is sent, posted or
 published: everything is a draft for a person to approve. never make up a
 fact: numbers, rates, prices, dates, names, claims come from the brief or the
-context doc, or not at all. when one is missing, put a placeholder like
-[rate] in the work and ask for it in `ask`. for anything else you're unsure
-of, make your best call, say so in the work, and keep going."""
+context doc, or not at all. when one is missing, leave it out and write the
+work so it doesn't need it: no placeholders, no invented dates or links. for
+anything else you're unsure of (a call to action, an angle), make your own
+call and keep going."""
 
 
 # Roles that write. The image, the layout and the page are the designers'
