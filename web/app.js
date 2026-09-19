@@ -579,5 +579,9 @@ $('composer').addEventListener('submit', async (e) => {
     route();
     window.addEventListener('hashchange', route);
     state.poll = setInterval(pollEvents, 1200);
-  } catch (err) { showError(err.message); }
+  } catch (err) {
+    // every view starts hidden, so a failed start would be a blank page
+    $('home').hidden = false;
+    showError(`renga didn't load: ${err.message}`);
+  }
 })();
