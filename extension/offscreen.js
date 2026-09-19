@@ -1,15 +1,19 @@
 // the listener's ears when the call has no captions. an offscreen page
 // (manifest v3 records audio only in one): it records the meet tab the
-// panel picked, keeps playing it so you still hear the call, and every
-// CHUNK_S seconds posts what was said as a 16 kHz mono wav to renga, which
-// has gemini transcribe it as the listener. chunks with nobody talking are
-// never sent.
+// panel picked, keeps playing it so you still hear the call, and posts what
+// was said as a 16 kHz mono wav to renga, which has gemini transcribe it as
+// the listener. a chunk ends where the speaker pauses (or at MAX_S in a long
+// turn), so a sentence goes as soon as it's said rather than waiting out a
+// fixed stretch. chunks with nobody talking are never sent.
 'use strict';
 
 const SERVER = 'http://localhost:8020';
-const CHUNK_S = 8;    // how far behind the transcript runs, at least
-const RATE = 16000;   // plenty for speech, and a third of the size of 48 kHz
-const QUIET = 0.008;  // rms below this all chunk long: nobody spoke
+const RATE = 16000;    // plenty for speech, and a third of the size of 48 kHz
+const QUIET = 0.008;   // rms below this: nobody's speaking
+const PAUSE_S = 0.5;   // this much quiet after speech ends a chunk...
+const SPEECH_S = 0.6;  // ...once there's been at least this much speech in it
+const MAX_S = 6;       // a long turn is cut here anyway
+const LEAD_S = 0.3;    // quiet kept before speech starts, so its first word isn't clipped
 
 let ears = null;
 
@@ -28,25 +32,37 @@ async function start({ streamId, agentId }) {
   const ctx = new AudioContext();
   const source = ctx.createMediaStreamSource(stream);
   source.connect(ctx.destination); // capturing a tab mutes it: play it back so you still hear the call
-  const tap = ctx.createScriptProcessor(4096, 1, 1);
-  let buf = [];
+  const tap = ctx.createScriptProcessor(2048, 1, 1);  // ~43 ms blocks at 48 kHz
+  let buf = [], len = 0, speech = 0, quiet = 0;  // samples: the chunk, speech in it, quiet at its end
+  const rate = ctx.sampleRate;
+  const flush = () => {
+    const chunk = buf;
+    buf = []; len = speech = quiet = 0;
+    if (chunk.length) send(chunk, rate, agentId);
+  };
   tap.onaudioprocess = (e) => {
-    buf.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    const block = new Float32Array(e.inputBuffer.getChannelData(0));
     e.outputBuffer.getChannelData(0).fill(0); // the tap itself stays silent
+    buf.push(block);
+    len += block.length;
+    if (rms(block) >= QUIET) { speech += block.length; quiet = 0; } else quiet += block.length;
+    if (!speech) {  // nobody's spoken yet: keep only a short lead-in
+      while (buf.length > 1 && len - buf[0].length >= LEAD_S * rate) len -= buf.shift().length;
+      return;
+    }
+    const paused = speech >= SPEECH_S * rate && quiet >= PAUSE_S * rate;
+    if (paused || len >= MAX_S * rate) flush();
   };
   source.connect(tap);
   tap.connect(ctx.destination); // a processor only runs while it's connected
-  const flush = () => { const chunk = buf; buf = []; send(chunk, ctx.sampleRate, agentId); };
-  const timer = setInterval(flush, CHUNK_S * 1000);
   stream.getAudioTracks()[0].addEventListener('ended', () => ended('the call tab stopped sharing its audio'));
-  ears = { stream, ctx, timer, flush };
+  ears = { stream, ctx, flush };
 }
 
 function stop() {
   if (!ears) return;
-  const { stream, ctx, timer, flush } = ears;
+  const { stream, ctx, flush } = ears;
   ears = null;
-  clearInterval(timer);
   flush(); // what was said since the last chunk
   stream.getTracks().forEach((t) => t.stop());
   ctx.close();

@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from . import agents
 
-QUEUE = 75  # ten minutes of 8-second chunks
+QUEUE = 200  # about ten minutes of a call, cut at its pauses
 TYPES = {"audio/wav"}
 
 router = APIRouter()

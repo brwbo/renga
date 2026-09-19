@@ -25,9 +25,12 @@ modal secret holds the key.
 import argparse
 import base64
 import hashlib
+import json
 import os
+import queue
 import threading
 import time
+import uuid
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
@@ -43,6 +46,9 @@ LOGFIRE = ["logfire-us.pydantic.dev", "logfire-eu.pydantic.dev"]
 QUIET = 15.0  # the meeting is read once it goes quiet for this long...
 BACKLOG = 8   # ...or once this many lines are waiting, whichever comes first
 PM_BACKLOG = 40  # the pm waits for the speaker to finish: only a very long run of lines cuts in
+HEAR_EVERY = 0.25  # how often the host asks renga for the call's next audio
+HEAR_AT_ONCE = 3   # chunks of one room's call transcribing side by side
+HEAR_IDLE = 5 * 60  # a room's worker with no audio this long is closed, so its sandbox can idle down
 
 # provider: (the modal secret with its key, the one api host it may reach)
 PROVIDERS = {
@@ -137,6 +143,153 @@ def run_job(renga: str, job: Job) -> None:
         print(f"#{job.room} stopped with an error:\n{proc.stderr.read()}")
 
 
+class Worker:
+    """One long-running `inside --serve` in a room's sandbox, for jobs that
+    come every few seconds: starting a process in the sandbox for each one
+    cost more than the model call. Jobs go in on stdin as json lines; a
+    reader thread hands each tagged line out to the job it belongs to."""
+
+    def __init__(self, room: str):
+        self.proc = sandbox(room).exec("python", "-m", "renga.design.inside", "--serve", bufsize=1)
+        self.jobs: dict[str, queue.Queue] = {}
+        self.alive = True
+        self.used = time.monotonic()
+        self._write = threading.Lock()
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self) -> None:
+        try:
+            for raw in self.proc.stdout:
+                if raw.strip():
+                    msg = json.loads(raw)
+                    if box := self.jobs.get(msg["id"]):
+                        box.put(msg)
+        finally:  # the process is gone: nothing still waiting will hear back
+            self.alive = False
+            for box in list(self.jobs.values()):
+                box.put({"done": True, "error": "the sandbox's worker stopped"})
+
+    def run(self, job: Job, timeout: float = 120) -> list[Line]:
+        """Every line the job says, once it's done."""
+        jid, box = uuid.uuid4().hex, queue.Queue()
+        self.jobs[jid] = box
+        self.used = time.monotonic()
+        try:
+            with self._write:
+                self.proc.stdin.write(json.dumps({"id": jid, "job": job.model_dump(mode="json")}) + "\n")
+                self.proc.stdin.drain()
+            lines = []
+            while not (msg := box.get(timeout=timeout)).get("done"):
+                lines.append(Line.model_validate_json(msg["line"]))
+            if msg.get("error"):
+                print(f"#{job.room}: {msg['error']}")
+            return lines
+        finally:
+            self.jobs.pop(jid, None)
+            self.used = time.monotonic()
+
+    def close(self) -> None:
+        """No more jobs: the worker finishes what it has and exits."""
+        with self._write:
+            self.proc.stdin.write_eof()
+            self.proc.stdin.drain()
+
+
+class InOrder:
+    """Posts each chunk's lines in the order the chunks were said, however
+    their transcriptions finish, so the transcript never runs out of order."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._given = 0   # tickets handed out
+        self._next = 0    # the ticket whose lines go next
+        self._done: dict[int, list] = {}
+
+    def ticket(self) -> int:
+        with self._lock:
+            self._given += 1
+            return self._given - 1
+
+    def finish(self, ticket: int, lines: list, post: Callable) -> None:
+        """A chunk is transcribed (lines may be empty: nobody spoke, or it
+        failed); post it and whatever was waiting behind it."""
+        with self._lock:
+            self._done[ticket] = lines
+            while self._next in self._done:
+                for line in self._done.pop(self._next):
+                    post(*line.request())
+                self._next += 1
+
+
+def hearing(renga: str) -> None:
+    """The call's audio, when the extension records it instead of reading
+    captions: asked for every HEAR_EVERY seconds, a few chunks of a room
+    transcribing at once in that room's long-running worker, and each chunk's
+    lines posted in the order they were said."""
+    import httpx
+
+    if provider(model())[0] != "gemini":  # only gemini hears audio, and only its key is in the sandbox
+        print(f"can't hear calls with {model()}; set RENGA_MODEL to a gemini model")
+        return
+    workers: dict[str, Worker] = {}
+    order: dict[str, InOrder] = {}
+    busy: dict[str, int] = {}  # room -> chunks in flight
+    lock = threading.Lock()
+
+    def worker(room_id: str) -> Worker:
+        with lock:
+            if room_id not in workers or not workers[room_id].alive:
+                workers[room_id] = Worker(room_id)
+            return workers[room_id]
+
+    def transcribe(job: Job, ticket: int) -> None:
+        lines: list[Line] = []
+        try:
+            lines = worker(job.room).run(job)
+        except Exception as err:  # keep hearing whatever one chunk does
+            print(f"#{job.room}: {err}")
+        finally:
+            with httpx.Client(base_url=renga, timeout=30) as client:
+                def post(path: str, body: dict) -> None:
+                    r = client.post(path, json=body)
+                    if r.is_error:
+                        print(f"renga said {r.status_code} to {body.get('agent_id')}: {r.text}")
+                order[job.room].finish(ticket, lines, post)
+            with lock:
+                busy[job.room] -= 1
+
+    with httpx.Client(base_url=renga, timeout=30) as client:
+        while True:
+            try:
+                full = sorted(r for r, n in busy.items() if n >= HEAR_AT_ONCE)
+                chunks = client.post("/api/heard/next", json={"busy": full}).json()
+                if chunks:
+                    rooms = {r["id"]: r for r in client.get("/api/rooms").json()}
+                for chunk in chunks:
+                    room = rooms.get(chunk["room"])
+                    if not room:
+                        continue
+                    log = client.get("/api/events", params={"channel": room["id"]}).json()
+                    job = prepare(client, hear_job(room, chunk["agent_id"], chunk["audio"], chunk["mime"], log),
+                                  room, list(rooms.values()))
+                    job.watch = ""  # a trace line every few seconds would drown #logfire
+                    ticket = order.setdefault(room["id"], InOrder()).ticket()
+                    with lock:
+                        busy[room["id"]] = busy.get(room["id"], 0) + 1
+                    threading.Thread(target=transcribe, args=(job, ticket), daemon=True).start()
+            except Exception as err:  # renga restarting: try again next time
+                print(f"hearing: {err}")
+            with lock:  # a call that's over: let its sandbox idle down
+                for room_id, w in list(workers.items()):
+                    if not busy.get(room_id) and time.monotonic() - w.used > HEAR_IDLE:
+                        workers.pop(room_id)
+                        try:
+                            w.close()
+                        except Exception:
+                            pass
+            time.sleep(HEAR_EVERY)
+
+
 def run(renga: str, room_id: str, brief: str) -> None:
     """Hand one brief straight to a room's crew."""
     import httpx
@@ -196,26 +349,8 @@ def listen(renga: str, every: float = 2.0) -> None:
                 done()
         threading.Thread(target=go, daemon=True).start()
 
-    hearing: set[str] = set()  # rooms whose listener is transcribing a chunk of the call
-    deaf = provider(model())[0] != "gemini"  # only gemini hears audio, and only its key is in the sandbox
-
-    def hear(client, rooms: list[dict]) -> None:
-        """The call's audio, when the extension is recording it instead of
-        reading captions: one chunk per room at a time, so the lines stay in order."""
-        by_id = {r["id"]: r for r in rooms}
-        for chunk in client.post("/api/heard/next", json={"busy": sorted(hearing)}).json():
-            room = by_id.get(chunk["room"])
-            if not room:
-                continue
-            if deaf:
-                print(f"#{room['name']}: can't hear the call with {model()}; set RENGA_MODEL to a gemini model")
-                continue
-            log = client.get("/api/events", params={"channel": room["id"]}).json()
-            job = prepare(client, hear_job(room, chunk["agent_id"], chunk["audio"], chunk["mime"], log),
-                          room, rooms)
-            job.watch = ""  # a trace line every few seconds would drown #logfire
-            hearing.add(room["id"])
-            start(job, done=lambda r=room["id"]: hearing.discard(r))
+    # the call's audio has its own, quicker loop
+    threading.Thread(target=hearing, args=(renga,), daemon=True).start()
 
     meetings: dict[tuple[str, str], Meeting] = {}  # (room, "pm", "notes" or "eyes")
 
@@ -287,7 +422,6 @@ def listen(renga: str, every: float = 2.0) -> None:
                 m.look = None
                 m.busy = True
                 start(prepare(client, job, room, rooms), done=lambda m=m: setattr(m, "busy", False))
-            hear(client, rooms)
             time.sleep(every)
 
 

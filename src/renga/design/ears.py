@@ -57,8 +57,10 @@ what, a line per turn, in order. you don't summarise, judge or answer.
 class Ears:
     def __init__(self, room: str, me: str, model: Model | str | None = None, context: str = ""):
         self.room, self.me = room, me
+        # transcribing needs no reasoning, and thinking first is most of a flash model's wait
         self.agent = Agent(model or ears_model(), output_type=Heard, name="ears",
-                           defer_model_check=True, instructions=INSTRUCTIONS + about(context))
+                           defer_model_check=True, instructions=INSTRUCTIONS + about(context),
+                           model_settings={"thinking": False})
 
     async def run(self, audio: bytes, mime: str, recent: list[str]) -> AsyncIterator[Line]:
         """`recent` is the transcript so far, for who's who and where a cut sentence began."""

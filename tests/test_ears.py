@@ -73,3 +73,41 @@ def test_a_chunk_becomes_transcript_the_pm_reads(client):
     pump(asyncio.run(printed()), lambda path, body: client.post(path, json=body).raise_for_status())
     last = client.get("/api/events?channel=main").json()[-1]
     assert (last["from"], last["kind"], last["text"]) == ("transcript", "chat", "sam: fx email by thursday")
+
+
+def test_the_worker_runs_jobs_side_by_side_and_tags_each_line():
+    import json
+    import queue
+
+    from renga.design.inside import serve
+    from renga.design.jobs import Job
+
+    jobs = [Job(kind="hear", room="main", me="transcript", audio=WAV, mime="audio/wav", seen=[]),
+            Job(kind="hear", room="main", me="transcript", audio=WAV, mime="audio/wav", seen=[])]
+    stdin = queue.Queue()
+    for n, job in enumerate(jobs):
+        stdin.put(json.dumps({"id": f"j{n}", "job": job.model_dump(mode="json")}) + "\n")
+    stdin.put("")  # stdin closed: finish what's running and stop
+    out: list[dict] = []
+    model = transcribing([{"who": "sam", "text": "fx email by thursday"}], [])
+    asyncio.run(serve(read=stdin.get, write=lambda text: out.append(json.loads(text)), model=model))
+    for jid in ("j0", "j1"):
+        mine = [m for m in out if m["id"] == jid]
+        assert json.loads(mine[0]["line"])["text"] == "sam: fx email by thursday"
+        assert mine[-1] == {"id": jid, "done": True}
+
+
+def test_chunks_are_posted_in_the_order_they_were_said():
+    from renga.design.crew import Line
+    from renga.design.sandbox import InOrder
+
+    said = lambda text: Line(agent_id="transcript", channel="main", kind="chat", text=text)  # noqa: E731
+    posted: list[str] = []
+    post = lambda path, body: posted.append(body["text"])  # noqa: E731
+    order = InOrder()
+    first, second, third = order.ticket(), order.ticket(), order.ticket()
+    order.finish(third, [said("three")], post)   # finishes first, waits its turn
+    order.finish(second, [], post)               # nobody spoke
+    assert posted == []
+    order.finish(first, [said("one"), said("one more")], post)
+    assert posted == ["one", "one more", "three"]

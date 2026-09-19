@@ -12,6 +12,7 @@ who, how long, the tokens, errors.
 
 import asyncio
 import base64
+import json
 import sys
 from collections import defaultdict
 from collections.abc import AsyncIterator
@@ -124,8 +125,37 @@ async def main() -> None:
         print(out, flush=True)
 
 
+async def serve(read=None, write=None, model=None) -> None:
+    """Stay up and take jobs as they come: one `{"id", "job"}` per line on
+    stdin, run side by side, and every line out tagged with its job's id,
+    then `{"id", "done"}` when it ends. For work that comes every few
+    seconds (the call's audio): a new process per job costs more than the
+    work, a model call away."""
+    read = read or (lambda: sys.stdin.readline())
+    write = write or (lambda text: print(text, flush=True))
+    loop = asyncio.get_running_loop()
+    running: set[asyncio.Task] = set()
+
+    async def one(jid: str, job: Job) -> None:
+        try:
+            async for out in stream(job, model=model):
+                write(json.dumps({"id": jid, "line": out}))
+            write(json.dumps({"id": jid, "done": True}))
+        except Exception as err:  # one job failing doesn't stop the others
+            write(json.dumps({"id": jid, "done": True, "error": str(err)}))
+
+    while raw := await loop.run_in_executor(None, read):
+        if not raw.strip():
+            continue
+        msg = json.loads(raw)
+        task = asyncio.create_task(one(msg["id"], Job.model_validate(msg["job"])))
+        running.add(task)
+        task.add_done_callback(running.discard)
+    await asyncio.gather(*running)
+
+
 if __name__ == "__main__":
     logfire.configure(send_to_logfire="if-token-present", console=False,
                       additional_span_processors=[WATCH])
     logfire.instrument_pydantic_ai()
-    asyncio.run(main())
+    asyncio.run(serve() if "--serve" in sys.argv else main())
