@@ -539,4 +539,17 @@ async def ws(socket: WebSocket) -> None:
 # ordinary tab while working on it (it works without the chrome apis).
 app.mount("/extension", StaticFiles(directory=EXTENSION), name="extension")
 app.mount("/frames", StaticFiles(directory=FRAMES), name="frames")
-app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
+
+
+class Fresh(StaticFiles):
+    """The web app, checked with the server on every load. Without it a
+    browser can keep an old index.html next to a new app.js, and a page that
+    doesn't match its script comes up blank. The etag keeps the check cheap."""
+
+    def file_response(self, *args, **kwargs) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/", Fresh(directory=WEB, html=True), name="web")
