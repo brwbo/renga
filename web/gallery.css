@@ -1,0 +1,15 @@
+/* a design room's library: its signed-off images in a grid, in place of
+   the chat. #app.in-gallery swaps the log and composer for the grid. */
+.gallery { display: none; }
+.in-gallery .log, .in-gallery .composer, .in-gallery .thinking { display: none !important; }
+.in-gallery .gallery { display: block; flex: 1; overflow-y: auto; padding: 20px 28px 32px; }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.gallery-grid .file-view { aspect-ratio: 1; }
+.gallery .empty { color: var(--ink-3); }
+.room-btn.sub { padding-left: 20px; }
+.room-btn.sub .hash { font-size: 11px; }
+@media (max-width: 760px) {
+  .in-gallery .gallery { padding: 16px; }
+  .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .room-btn.sub { padding-left: 8px; }
+}

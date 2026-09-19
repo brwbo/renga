@@ -25,9 +25,9 @@ def test_only_the_version_the_lead_signed_off_is_kept():
     assert files == {"copywriter": ["copy.md"], "graphic-designer": ["final.svg"]}
 
 
-def test_a_team_with_nothing_signed_off_has_an_empty_library(client):
-    assert client.get("/api/teams/renga/outputs").json() == []
-    assert client.get("/api/teams/nope/outputs").status_code == 404
+def test_a_room_with_nothing_signed_off_has_an_empty_library(client):
+    assert client.get("/api/rooms/design/library").json() == []
+    assert client.get("/api/rooms/nope/library").status_code == 404
 
 
 def test_a_file_kept_in_the_event_itself_is_served_like_any_other(client):

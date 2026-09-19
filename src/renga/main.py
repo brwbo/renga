@@ -69,7 +69,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="renga", lifespan=lifespan)
 app.include_router(hearing.router)  # the call's audio, when there are no captions
 app.include_router(new_rooms)  # a new room in a team, from the team page
-app.include_router(outputs.router)  # a team's signed-off work, for the team page
+app.include_router(outputs.router)  # a design room's signed-off work, for its library
 
 
 class ChatIn(BaseModel):

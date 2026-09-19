@@ -8,7 +8,7 @@
 // and the page comes up broken. When the page's version isn't the one these
 // scripts expect, fetch it past the cache and reload, once. Bump both
 // together (the meta in index.html and PAGE here) when the page's markup changes.
-const PAGE = '3';
+const PAGE = '4';
 if (document.querySelector('meta[name=renga-page]')?.content !== PAGE
     && sessionStorage.getItem('renga-reloaded') !== PAGE) {
   sessionStorage.setItem('renga-reloaded', PAGE);
@@ -27,6 +27,7 @@ const el = (tag, cls, text) => {
 const state = {
   teams: [], rooms: [], agents: {}, room: null, since: 0, poll: null,
   team: null,  // the team open at #/team/<id>
+  gallery: false,  // the open room's library, not its chat
   events: {}, unread: {}, questions: {}, answered: new Set(), last: null,
   logfire: null,  // the logfire project a trace id links into, when there is one
 };
@@ -262,11 +263,18 @@ function renderRooms() {
   for (const r of roomsOf(room(state.room).team)) {
     const b = el('a', 'room-btn');
     b.href = `#/room/${r.id}`;
-    if (r.id === state.room) b.setAttribute('aria-current', 'page');
+    if (r.id === state.room && !state.gallery) b.setAttribute('aria-current', 'page');
     b.append(el('span', 'hash', '#'), el('span', null, r.name));
     const n = state.unread[r.id] || 0;
     if (n && r.id !== state.room) b.appendChild(unreadBadge(n));
     nav.appendChild(b);
+    if (hasLibrary(r)) { // gallery.js
+      const lib = el('a', 'room-btn sub');
+      lib.href = `#/room/${r.id}/library`;
+      lib.append(el('span', 'hash', '└'), el('span', null, 'library'));
+      if (r.id === state.room && state.gallery) lib.setAttribute('aria-current', 'page');
+      nav.appendChild(lib);
+    }
   }
 }
 
@@ -363,9 +371,13 @@ function route() {
   $('library').hidden = true;
   $('team-view').hidden = true;
   state.team = null;
+  state.gallery = false;
+  $('app').classList.remove('in-gallery');
   const m = location.hash.match(/^#\/room\/([\w-]+)$/);
+  const lib = location.hash.match(/^#\/room\/([\w-]+)\/library$/);
   const tm = location.hash.match(/^#\/team\/([\w-]+)$/);
   if (m && room(m[1])) openRoom(m[1]);
+  else if (lib && room(lib[1]) && hasLibrary(room(lib[1]))) openGallery(lib[1]); // gallery.js
   else if (tm && team(tm[1])) openTeam(tm[1]); // team.js
   else if (location.hash === '#/library') openLibrary(); // library.js
   else openHome();
@@ -557,6 +569,7 @@ async function pollEvents() {
       state.since = Math.max(state.since, e.id);
       elsewhere = append(e) || elsewhere;
     }
+    if (state.gallery) refreshGallery(); // gallery.js
     if (state.team) renderTeam(); // team.js
     else if (!state.room) renderHome();
     else if (elsewhere) renderRooms();

@@ -1,4 +1,4 @@
-"""A team's library of finished work: only what the lead signed off, never the
+"""A design room's library of finished work: only what the lead signed off, never the
 drafts. A design room's run ends with the lead's "done: n pieces" line, which
 carries the final text of each piece (crew.Crew.run). Each piece's files are
 on the line where its maker posted that exact text, so the final version of
@@ -61,12 +61,11 @@ def kept(f: dict) -> dict:
     return {"name": f["name"], "url": f"/files/{stored}", "type": FILE_TYPES[ext], "size": len(f["content"])}
 
 
-@router.get("/api/teams/{team_id}/outputs")
-def team_outputs(team_id: str) -> list[dict]:
-    if not agents.team(team_id):
-        raise HTTPException(404, f"no team called {team_id!r}")
-    events = [e for r in agents.all_rooms(team_id) for e in store.since(0, r.id)]
-    sets = approved(events)
+@router.get("/api/rooms/{room_id}/library")
+def room_library(room_id: str) -> list[dict]:
+    if not agents.room(room_id):
+        raise HTTPException(404, f"no room called {room_id!r}")
+    sets = approved(store.since(0, room_id))
     for s in sets:
         for p in s["pieces"]:
             p["files"] = [kept(f) for f in p["files"]]
