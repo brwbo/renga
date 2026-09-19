@@ -96,6 +96,9 @@ def crew_job(room: dict, agents: list[dict], brief: str, traceparent: str = "") 
                ids={r: a["id"] for r, a in members.items()})
 
 
+WHOLE_MEETING = 600  # lines: a long call, still well inside the model's context
+
+
 def router_job(room: dict, rooms: list[dict], agents: list[dict],
                events: list[dict], since: int) -> Job:
     """The project manager's view: every other room in the team that can take
@@ -109,7 +112,8 @@ def router_job(room: dict, rooms: list[dict], agents: list[dict],
     lines = _meeting(room, events, names, you=room["lead"], done=("handoff", "handed off"),
                      skip=aides(room, agents))
     return Job(kind="router", room=room["id"], pm=room["lead"], targets=targets,
-               seen=[s for i, _, s in lines if i <= since][-40:],
+               # the whole meeting, so a brief carries the session and not only its end
+               seen=[s for i, _, s in lines if i <= since][-WHOLE_MEETING:],
                new=[s for i, _, s in lines if i > since], slides=slides(room, agents, events))
 
 

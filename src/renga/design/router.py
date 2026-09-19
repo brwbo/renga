@@ -99,7 +99,11 @@ class Router:
                          "shown on screen (slides, shared tabs) counts as said in the meeting: "
                          "put its facts in the brief, and don't ask for what the screen showed. "
                          "the visualiser only writes down what's on screen; the design team "
-                         "makes the material."
+                         "makes the material.\n\n## the brief\n\nbefore you hand work off, read the "
+                         "whole meeting, from its first line, and everything shown on screen. the "
+                         "brief carries every fact from the session that bears on the work (who "
+                         "it's for, the numbers, the names, the before and after, what was decided), "
+                         "not only what was said last. the design team sees nothing but your brief."
                          + about(context))
         self.agent.output_validator(self._check)
 
@@ -115,7 +119,8 @@ class Router:
         shown = ("what's been shown on screen in this meeting (the slides presented, the tabs "
                  "shared), everything on it, as the visualiser wrote it down:\n\n" + "\n\n".join(slides)
                  + "\n\n" if slides else "")
-        prompt = (shown + "earlier in the meeting, already dealt with:\n\n" + ("\n".join(seen) or "(nothing)")
+        prompt = (shown + "the meeting so far, from its first line (context for any brief):\n\n"
+                  + ("\n".join(seen) or "(nothing)")
                   + "\n\nsaid since you last looked:\n\n" + "\n".join(new))
         yield Line(agent_id=self.pm, channel=self.room, kind="thinking", text="")
         routing = (await self.agent.run(prompt)).output
