@@ -15,7 +15,7 @@ from renga.design.roles import ROLES, DesignRoleId
 
 def test_sixteen_roles_and_seven_teams():
     assert len(get_args(DesignRoleId)) == 16
-    assert set(ROLES) == set(get_args(DesignRoleId)) | {"listener", "project-manager"}
+    assert set(ROLES) == set(get_args(DesignRoleId)) | {"listener", "project-manager", "note-taker", "visualiser"}
     assert len({r.initials for r in ROLES.values()}) == len(ROLES)
     assert {r.group for r in ROLES.values()} == {"meeting", "design", "marketing"}
     assert [p.id for p in PRESETS] == ["full-studio", "landing-page-sprint", "brand-campaign",

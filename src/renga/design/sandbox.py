@@ -23,6 +23,7 @@ modal secret holds the key.
 """
 
 import argparse
+import base64
 import hashlib
 import os
 import threading
@@ -31,7 +32,9 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from .crew import DEFAULT_MODEL, Line
-from .jobs import Job, brains, crew_job, listener_job, listener_of, router_job
+from .jobs import (Job, aide, aides, brains, crew_job, eyes_job, listener_job, listener_of,
+                   notes_job, router_job)
+from .visualiser import Screen
 
 APP = "renga-design"
 IDLE = 20 * 60  # a sandbox with nothing running shuts down after this
@@ -146,14 +149,28 @@ def run(renga: str, room_id: str, brief: str) -> None:
     run_job(renga, job)
 
 
+def look(client, event: dict) -> Screen:
+    """The screen the extension looked at for the visualiser, with its
+    screenshot, which the sandbox can't fetch from renga itself."""
+    d = event.get("data") or {}
+    screen = Screen(url=d.get("url", ""), title=d.get("title", ""), text=d.get("text", ""),
+                    because=d.get("because", ""))
+    if d.get("frame") and (r := client.get(d["frame"])).is_success:
+        screen.image = base64.b64encode(r.content).decode()
+        screen.media_type = r.headers.get("content-type", "image/jpeg").split(";")[0]
+    return screen
+
+
 class Meeting:
-    """One meeting room an agent is reading: its listener, or its project manager."""
+    """One meeting room an agent is reading: its listener, its project
+    manager, its note-taker or its visualiser."""
 
     def __init__(self, since: int):
         self.routed = since  # everything up to here has been read
         self.waiting = 0     # lines said since then
         self.last = 0.0      # when the last one was said
         self.busy = False
+        self.look: dict | None = None  # the visualiser's: a look at the screen to go on now
 
 
 def listen(renga: str, every: float = 2.0) -> None:
@@ -161,7 +178,9 @@ def listen(renga: str, every: float = 2.0) -> None:
     that crew. What's said in a meeting room wakes its listener once the
     meeting goes quiet or enough has piled up; the actions it sends wake the
     project manager as soon as it's done. A meeting room with no listener
-    wakes its project manager on what's said. Nothing is replayed."""
+    wakes its project manager on what's said. The note-taker and the
+    visualiser wake on the same pauses, and the visualiser straight away on
+    a look at the screen. Nothing is replayed."""
     import httpx
 
     def start(job: Job, done: Callable[[], None] = lambda: None) -> None:
@@ -174,7 +193,7 @@ def listen(renga: str, every: float = 2.0) -> None:
                 done()
         threading.Thread(target=go, daemon=True).start()
 
-    meetings: dict[tuple[str, str], Meeting] = {}  # (room, "listener" or "pm")
+    meetings: dict[tuple[str, str], Meeting] = {}  # (room, "listener", "pm", "notes" or "eyes")
 
     def heard(room_id: str, who: str, event_id: int) -> None:
         m = meetings.setdefault((room_id, who), Meeting(event_id - 1))
@@ -198,8 +217,16 @@ def listen(renga: str, every: float = 2.0) -> None:
                     print(f"#{room['name']} got a brief, its crew is on it")
                     job = crew_job(room, agents, e["text"], (e.get("data") or {}).get("traceparent", ""))
                     start(prepare(client, job, room, rooms))
+                elif kind == "router" and e["from"] in aides(room, agents):
+                    eyes = aide(room, agents, "visualiser")
+                    if eyes and e["kind"] == "tool_result" and e["from"] == eyes["id"]:
+                        heard(room["id"], "eyes", e["id"])
+                        meetings[(room["id"], "eyes")].look = e
                 elif kind == "router" and e["kind"] in ("chat", "answer") and e["from"] != room["lead"]:
                     heard(room["id"], "listener" if ears else "pm", e["id"])
+                    for who, role in (("notes", "note-taker"), ("eyes", "visualiser")):
+                        if aide(room, agents, role):
+                            heard(room["id"], who, e["id"])
                 elif ears and e["kind"] == "task" and e["from"] == ears["id"] and e["to"] == room["lead"]:
                     heard(room["id"], "pm", e["id"])
             for (room_id, who), m in meetings.items():
@@ -209,21 +236,34 @@ def listen(renga: str, every: float = 2.0) -> None:
                 ears = listener_of(room, agents)
                 if who == "pm" and ears:  # the listener waited for the pause; go once it's done
                     ready = not meetings.get((room_id, "listener"), Meeting(0)).busy
+                elif who == "eyes" and m.look:
+                    ready = True
                 else:
                     ready = time.monotonic() - m.last >= QUIET or m.waiting >= BACKLOG
                 if not ready:
                     continue
                 log = client.get("/api/events", params={"channel": room_id}).json()
+                if who in ("notes", "eyes") and not aide(room, agents, "note-taker" if who == "notes" else "visualiser"):
+                    m.waiting, m.look = 0, None  # the aide has left the room
+                    continue
                 if who == "listener" and ears:
                     job = listener_job(room, agents, log, m.routed)
                     print(f"#{room['name']}: the listener is listening to {len(job.new)} lines for actions")
+                elif who == "notes":
+                    job = notes_job(room, agents, log, m.routed)
+                    print(f"#{room['name']}: the note-taker is reading {len(job.new)} lines")
+                elif who == "eyes":
+                    job = eyes_job(room, agents, log, m.routed, look(client, m.look) if m.look else None)
+                    print(f"#{room['name']}: the visualiser is " + ("looking at the screen" if m.look
+                          else f"reading {len(job.new)} lines"))
                 else:
                     job = router_job(room, rooms, agents, log, m.routed)
                     print(f"#{room['name']}: the project manager is reading {len(job.new)} lines")
                 # the log can run ahead of `since`: whatever this job reads is read
                 m.routed, m.waiting = max([since, *(e["id"] for e in log)]), 0
-                if not job.new:
+                if not job.new and not job.screen:
                     continue
+                m.look = None
                 m.busy = True
                 start(prepare(client, job, room, rooms), done=lambda m=m: setattr(m, "busy", False))
             time.sleep(every)

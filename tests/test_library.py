@@ -13,7 +13,7 @@ def test_the_library_has_every_agent_and_workflow(client):
     groups = {}
     for a in lib["agents"]:
         groups.setdefault(a["group"], []).append(a["id"])
-    assert groups["meeting"] == ["listener", "project-manager"]
+    assert groups["meeting"] == ["listener", "project-manager", "note-taker", "visualiser"]
     assert len(groups["design"]) + len(groups["marketing"]) == 16
     assert next(a for a in lib["agents"] if a["id"] == "listener")["senses"] == ["captions"]
     ids = [w["id"] for w in lib["workflows"]]

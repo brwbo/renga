@@ -18,11 +18,11 @@ DesignRoleId = Literal[
     "design-engineer", "brand-strategist", "marketing-strategist", "print-designer",
     "motion-designer", "accessibility-specialist", "content-strategist", "seo-specialist",
 ]
-RoleId = Literal[DesignRoleId, "listener", "project-manager"]
+RoleId = Literal[DesignRoleId, "listener", "project-manager", "note-taker", "visualiser"]
 
 Group = Literal["meeting", "design", "marketing"]
 GROUPS: dict[str, Group] = {
-    **dict.fromkeys(["listener", "project-manager"], "meeting"),
+    **dict.fromkeys(["listener", "project-manager", "note-taker", "visualiser"], "meeting"),
     **dict.fromkeys(["researcher", "graphic-designer", "ux-designer", "ux-writer",
                      "editorial-designer", "creative-director", "print-designer",
                      "motion-designer", "accessibility-specialist", "design-engineer"], "design"),
@@ -316,6 +316,35 @@ _ROLES = [
          delivers=["briefs handed to the right team", "a line in the meeting saying what went where"],
          hands_to="each brief goes to the lead of a team's room, who splits it across their people. "
                   "one brief per piece of work. when nothing needs doing, hand nothing off."),
+    Role(id="note-taker", initials="nt", personality=_p(1, 1, 1, 1, 0),
+         does="keeps the meeting's notes: a running summary, the decisions and who owes what",
+         who="you are the room's memory. you read what the listener posts and keep the "
+             "notes someone who missed the call could act on. you write down what was "
+             "decided and who owes what, not everything that was said.",
+         steps=["read what was said since you last wrote.",
+                "keep a running summary: a line per topic, in the order they came up.",
+                "write down each decision, with who made it.",
+                "write down each open question and each promise: who, what, by when.",
+                "when the meeting ends, post the notes in one message."],
+         delivers=["a running summary of the meeting", "the decisions and who made them",
+                   "open questions and who owes what, by when"],
+         hands_to="everyone in the meeting gets the notes, and the project manager uses the "
+                  "decisions as context for the briefs. keep people's own numbers and names."),
+    Role(id="visualiser", initials="vs", personality=_p(-2, 0, -1, 1, 0), senses=["screen"],
+         does="sees what's shared on screen and turns what the meeting describes into a diagram",
+         who="you are the room's eyes. through the chrome extension you see whatever tab "
+             "is shared: slides, docs, dashboards. you say what's on screen for anyone "
+             "who can't see it, and when the meeting describes a flow, a plan or a "
+             "structure, you draw it so everyone is looking at the same thing.",
+         steps=["say what's on screen when it changes: the slide title, the numbers, the chart.",
+                "keep numbers and labels exactly as shown.",
+                "when people describe a flow, a timeline or who owns what, sketch it as a diagram.",
+                "label every box with the words the meeting used.",
+                "post the diagram in the meeting and say in a line what it shows."],
+         delivers=["what's on screen, described as it changes",
+                   "diagrams of what the meeting describes"],
+         hands_to="the meeting gets each diagram, and the project manager can attach one to a "
+                  "brief when a team needs to see the shape of the work."),
 ]
 
 ROLES: dict[str, Role] = {r.id: r for r in _ROLES}

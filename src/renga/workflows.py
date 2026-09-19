@@ -61,11 +61,14 @@ MEETING = Workflow(
     how=["the listener posts what's said in the meeting, through the chrome extension",
          "when the meeting pauses, the listener sends the project manager each action it heard",
          "the project manager hands each action to #marketing as a brief",
-         "the marketing lead splits it across the room, and the drafts come back to you"],
+         "the marketing lead splits it across the room, and the drafts come back to you",
+         "alongside, the note-taker keeps the notes, and the visualiser says what's on screen "
+         "and draws what the meeting describes"],
     rooms=[
         RoomPlan(name="meeting", lead="project-manager",
                  purpose="hears the meeting and hands out what needs doing",
-                 members=[_m("listener"), _m("project-manager", "stoic", "methodical", "leader", "judging")]),
+                 members=[_m("listener"), _m("project-manager", "stoic", "methodical", "leader", "judging"),
+                          _m("note-taker"), _m("visualiser")]),
         RoomPlan(name="marketing", lead="marketing-strategist",
                  purpose="campaigns, copy, visuals, social and content",
                  members=[_m("marketing-strategist", "intense", "big-picture", "leader", "thinking"),
