@@ -50,14 +50,16 @@ class Agent(BaseModel):
     senses: list[Sense] = Field(default_factory=list)
     template: str | None = None  # the library role it was made from, if any
     traits: list[str] = Field(default_factory=list)
+    avatar_url: str | None = None
 
 
 def from_library(role: str, id: str, room: str, name: str | None = None,
-                 traits: list[str] = ()) -> Agent:
+                 traits: list[str] = (), avatar_url: str | None = None) -> Agent:
     """An agent made from a library role."""
     r = ROLES[role]
     return Agent(id=id, name=name or r.name, role=r.does, room=room, initials=r.initials,
-                 senses=list(r.senses), template=role, traits=list(traits))
+                 senses=list(r.senses), template=role, traits=list(traits),
+                 avatar_url=avatar_url)
 
 
 TEAMS: list[Team] = [

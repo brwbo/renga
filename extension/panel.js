@@ -78,10 +78,25 @@ function nameOf(id, fallback) {
 }
 
 function avatar(id) {
-  const node = el('span', 'av', id === 'admin' ? 'me' : (state.agents[id]?.initials || id.slice(0, 2)));
+  const a = state.agents[id];
+  const initials = id === 'admin' ? 'me' : (a?.initials || id.slice(0, 2));
+  const node = el('span', 'av');
   if (id === 'admin') node.classList.add('me');
   else if (isLead(id)) node.classList.add('lead');
   node.setAttribute('aria-hidden', 'true');
+
+  if (a?.avatar_url) {
+    const img = el('img', 'av-img');
+    img.src = a.avatar_url;
+    img.alt = '';
+    img.onerror = () => {
+      img.remove();
+      node.textContent = initials;
+    };
+    node.appendChild(img);
+  } else {
+    node.textContent = initials;
+  }
   return node;
 }
 

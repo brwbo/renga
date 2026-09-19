@@ -29,3 +29,12 @@ def test_extension_and_server_agree_on_the_port():
     for f in ("background.js", "panel.js"):
         assert "http://localhost:8020" in (ROOT / "extension" / f).read_text()
     assert "http://localhost:8020/*" in (ROOT / "extension/manifest.json").read_text()
+
+
+def test_panel_avatar_supports_images_and_fallback():
+    panel_js = (ROOT / "extension/panel.js").read_text()
+    assert "avatar_url" in panel_js
+    assert "onerror" in panel_js
+    panel_css = (ROOT / "extension/panel.css").read_text()
+    assert ".av-img" in panel_css
+
