@@ -98,7 +98,8 @@ whole rooms of agents in a team. the first workflow, **meeting to design and
 marketing**, is the connector between a meeting and the teams: the listener
 hears the call through the extension and posts it in `#meeting`, the
 project manager turns what needs doing into briefs for `#design` or
-`#marketing`, and that room's crew does the work.
+`#marketing`, and that room's crew does the work. how that marketing should
+look and sound: [docs/company.md](docs/company.md).
 
 setting up modal (login, profile, the model key), using gemini instead of
 claude, the library and workflows, and how the sandboxes behave:
