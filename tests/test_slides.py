@@ -123,11 +123,11 @@ def test_the_notes_on_the_slides_come_out_as_one_file_when_the_presentation_ends
         if (last.get("data") or {}).get("deck") == "done":
             break
         time.sleep(0.1)
-    assert last["text"] == "here are my notes on the slides."
+    assert last["text"] == "here's the context doc from the slides."
     [f] = last["data"]["files"]
-    assert f["name"] == "slides.md"
+    assert f["name"] == "slides-context.md"
     md = client.get(f["url"]).text
-    assert md == "# notes on the slides\n\n## slide 1\n\n- 9 banks connected\n\n## slide 3\n\n- runs at 02:00, 55-90 min\n"
+    assert md == "# context from the slides\n\n## slide 1\n\n- 9 banks connected\n\n## slide 3\n\n- runs at 02:00, 55-90 min\n"
 
     rooms, agents = client.get("/api/rooms").json(), client.get("/api/agents").json()
     meeting = next(r for r in rooms if r["id"] == "main")

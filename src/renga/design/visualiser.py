@@ -1,10 +1,11 @@
 """The visualiser's brain: the meeting's eyes, nothing more. It wakes when
 the extension has looked at the screen for it (a slide while someone
-presents, or a tab you asked it to read) and says, a short line each, only
-what the team could use from it, for the project manager to brief the design
-team with. Nothing useful, no message. It never makes anything itself.
+presents, or a tab you asked it to read) and writes down, a short line
+each, only what the team could use from it, into a context doc the project
+manager briefs the design team from. The chat only hears that it's reading
+and, at the end, gets the doc. It never makes anything itself.
 
-    a look at the screen -> visualiser: Seen -> a line per finding, or nothing"""
+    a look at the screen -> visualiser: Seen -> a line per finding, into the doc"""
 
 import base64
 import os
@@ -98,6 +99,9 @@ class Visualiser:
                        text=notes or "nothing worth using on this slide",
                        data={"notes": notes, "shown": f"slide {screen.slide}", "slide": screen.slide,
                              "quiet": True})
-        elif notes:  # a tab you asked it to read: what it found is the message
-            yield Line(agent_id=self.me, channel=self.room, kind="chat", text=notes,
-                       data={"notes": notes, "shown": screen.title or "the screen"})
+        elif notes:  # a tab you asked it to read: what it found goes in a doc, not the chat
+            shown = screen.title or "the screen"
+            yield Line(agent_id=self.me, channel=self.room, kind="chat",
+                       text="read the tab and wrote it up in a context doc.",
+                       data={"notes": notes, "shown": shown,
+                             "files": [{"name": "tab-context.md", "content": f"# context from {shown}\n\n{notes}\n"}]})

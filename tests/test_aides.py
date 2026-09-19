@@ -90,8 +90,9 @@ def test_the_visualiser_writes_down_the_screen_and_makes_nothing(client):
     assert any(isinstance(p, BinaryContent) for p in seen[0])  # it saw the screenshot
     assert any("revenue 4.2m" in p for p in seen[0] if isinstance(p, str))
     wrote = client.get("/api/events?channel=rowbo-meeting").json()[-1]
-    assert wrote["from"] == "rowbo-meeting-visualiser" and wrote["text"] == "- revenue 4.2m"
-    assert wrote["data"]["notes"] == "- revenue 4.2m" and "files" not in wrote["data"]
+    assert wrote["from"] == "rowbo-meeting-visualiser" and wrote["text"] == "read the tab and wrote it up in a context doc."
+    assert wrote["data"]["notes"] == "- revenue 4.2m"  # the findings are in the doc, not the chat
+    assert [f["name"] for f in wrote["data"]["files"]] == ["tab-context.md"]
 
     # what it wrote isn't the meeting, it's what the project manager briefs with
     log = client.get("/api/events?channel=rowbo-meeting").json()

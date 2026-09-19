@@ -40,4 +40,4 @@ def notes(events: list[dict[str, Any]], eyes: str) -> str:
             found[d["slide"]] = d["notes"]
     if not found:
         return ""
-    return "# notes on the slides\n\n" + "\n\n".join(f"## slide {n}\n\n{found[n]}" for n in sorted(found)) + "\n"
+    return "# context from the slides\n\n" + "\n\n".join(f"## slide {n}\n\n{found[n]}" for n in sorted(found)) + "\n"

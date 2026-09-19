@@ -446,7 +446,7 @@ async def presentation(body: DeckIn) -> dict:
     if not who or "screen" not in who.senses:
         raise HTTPException(404, f"no screen reader called {body.agent_id!r}")
     if body.state == deck.START:
-        return await emit(who.room, "chat", from_=who.id, text="reading the slides.", data={"deck": deck.START})
+        return await emit(who.room, "chat", from_=who.id, text="reading the slides and writing them up in a context doc.", data={"deck": deck.START})
     task = asyncio.create_task(_post_notes(who))
     _writing.add(task)
     task.add_done_callback(_writing.discard)
@@ -460,12 +460,12 @@ async def _post_notes(who) -> None:
         await asyncio.sleep(1)
     md = deck.notes(store.since(0, who.room), who.id)
     if not md:
-        await emit(who.room, "chat", from_=who.id, text="nothing on the slides worth noting.",
+        await emit(who.room, "chat", from_=who.id, text="read the slides: nothing in them worth adding to the context doc.",
                    data={"deck": deck.DONE})
         return
-    await emit(who.room, "chat", from_=who.id, text="here are my notes on the slides.",
+    await emit(who.room, "chat", from_=who.id, text="here's the context doc from the slides.",
                data={"deck": deck.DONE, "notes": md,
-                     "files": save_files([{"name": "slides.md", "content": md}])})
+                     "files": save_files([{"name": "slides-context.md", "content": md}])})
 
 
 @app.get("/api/questions")
