@@ -6,12 +6,16 @@ the lookups at the bottom.
 The pm sits in the meeting room and delegates to another room in its team by
 handing the work to that room's lead, who splits it across the room.
 
-The brains (pydantic ai agents on modal) are not wired yet; for now an agent
-is a name, a role and the letters on its avatar."""
+The design teams (design/presets.py) each get a room here, and have brains:
+pydantic ai agents hosted in modal sandboxes (design/sandbox.py). The meeting room's
+agents don't have brains yet."""
 
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from .design.presets import PRESETS, agent_id
+from .design.roles import ROLES
 
 # What an agent takes in from outside the chat, through the chrome extension:
 # meet's captions, or whatever tab you're looking at.
@@ -52,8 +56,6 @@ TEAMS: list[Team] = [
 ROOMS: list[Room] = [
     Room(id="main", team="renga", name="meeting", lead="pm",
          purpose="listens to the meeting, keeps the notes, hands work out"),
-    Room(id="design", team="renga", name="design", lead="director",
-         purpose="turns what was said into material: scripts, posts, visuals"),
     Room(id="rowbo-general", team="rowbo", name="general",
          purpose="everything about the site, until it needs its own room"),
 ]
@@ -69,17 +71,14 @@ ROSTER: list[Agent] = [
           role="running summary, decisions and action items"),
     Agent(id="actions", name="actions", room="main", initials="ac",
           role="starts on action items and leaves drafts"),
-    Agent(id="director", name="director", room="design", initials="di",
-          role="leads design: takes the brief from the pm and splits it across the room"),
-    Agent(id="copy", name="copy", room="design", initials="co",
-          role="headlines, posts, blog drafts and ad copy"),
-    Agent(id="video", name="video", room="design", initials="vd",
-          role="video scripts: hook, scenes, voiceover, call to action"),
-    Agent(id="visuals", name="visuals", room="design", initials="vs",
-          role="thumbnails, slides and social images"),
-    Agent(id="brand", name="brand", room="design", initials="br",
-          role="checks everything against the brand voice before it goes back"),
 ]
+
+# Every design team is a room the pm can hand material to, led by its lead.
+ROOMS += [Room(id=p.id, team="renga", name=p.id, purpose=p.does, lead=agent_id(p.id, p.lead))
+          for p in PRESETS]
+ROSTER += [Agent(id=agent_id(p.id, m.role), name=ROLES[m.role].name, room=p.id,
+                 initials=ROLES[m.role].initials, role=ROLES[m.role].does)
+           for p in PRESETS for m in p.members]
 
 # Agents a new team can start with, one per sense.
 STARTERS: dict[Sense, dict] = {

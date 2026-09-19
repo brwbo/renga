@@ -3,4 +3,5 @@ uvicorn[standard]>=0.32
 pydantic>=2.9
 logfire[fastapi]>=5.1  # tracing. no LOGFIRE_TOKEN means it exports nothing
 httpx>=0.27            # scripts/demo.py, and the test client
-# pydantic-ai-slim and modal: added when the agents get brains
+pydantic-ai-slim[anthropic,google]>=2.40  # the design teams' brains: claude or gemini
+modal>=1.5              # hosts each design team in a sandbox (src/renga/design/sandbox.py)
