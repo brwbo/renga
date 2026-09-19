@@ -129,6 +129,8 @@ def slides(room: dict, agents: list[dict], events: list[dict], most: int = 40) -
         d = e.get("data") or {}
         if not (eyes and e["channel"] == room["id"] and e["from"] == eyes["id"] and d.get("notes")):
             continue
+        if d.get("deck"):  # the notes file at the end: the same notes, already in by slide
+            continue
         if d.get("slide"):
             deck[d["slide"]] = d["notes"]
         else:

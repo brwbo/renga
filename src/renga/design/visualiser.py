@@ -89,11 +89,15 @@ class Visualiser:
         yield Line(agent_id=self.me, channel=self.room, kind="thinking", text="")
         out = (await self.agent.run(parts)).output
         found = [f.strip().lstrip("-• ").strip() for f in out.found]
-        if not (found := [f for f in found if f]):
-            return  # nothing worth using on it: no message
-        # What it found is the message: the screenshot isn't shown in the chat.
-        notes = "\n".join(f"- {f}" for f in found)
-        data = {"notes": notes, "shown": f"slide {screen.slide}" if screen.slide else (screen.title or "the screen")}
+        notes = "\n".join(f"- {f}" for f in found if f)
         if screen.slide:
-            data["slide"] = screen.slide
-        yield Line(agent_id=self.me, channel=self.room, kind="chat", text=notes, data=data)
+            # A slide's notes stay out of the chat, and are posted even when
+            # empty: when the presentation ends they all go into one notes
+            # file, which waits until every slide has been read.
+            yield Line(agent_id=self.me, channel=self.room, kind="chat",
+                       text=notes or "nothing worth using on this slide",
+                       data={"notes": notes, "shown": f"slide {screen.slide}", "slide": screen.slide,
+                             "quiet": True})
+        elif notes:  # a tab you asked it to read: what it found is the message
+            yield Line(agent_id=self.me, channel=self.room, kind="chat", text=notes,
+                       data={"notes": notes, "shown": screen.title or "the screen"})

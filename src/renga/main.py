@@ -6,6 +6,7 @@ With RENGA_BRAINS=modal the server also starts the agents' host
 (design/sandbox.py listen) in the background, so library agents work
 without a second process."""
 
+import asyncio
 import base64
 import binascii
 import contextlib
@@ -16,6 +17,7 @@ import re
 import uuid
 import zipfile
 from pathlib import Path
+from typing import Literal
 
 import logfire
 from logfire.propagate import get_context
@@ -23,7 +25,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSoc
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import agents
+from . import agents, deck
 from .bus import bus, emit
 from .cues import cue, looks
 from . import hearing
@@ -46,6 +48,7 @@ FRAMES.mkdir(parents=True, exist_ok=True)
 # What the agents make (svg, html, markdown), kept as files like the frames.
 FILES = Path(os.environ.get("RENGA_FILES", ROOT / "files"))
 FILES.mkdir(parents=True, exist_ok=True)
+DECK_WAIT = 90  # seconds the notes wait for the last slides to be read
 FILE_TYPES = {"svg": "image/svg+xml", "html": "text/html", "md": "text/markdown",
               "txt": "text/plain", "csv": "text/csv", "json": "application/json", "css": "text/css"}
 
@@ -425,6 +428,44 @@ async def screen(body: ScreenIn) -> dict:
         data["because"] = body.because
         said = f'looked at the screen, because someone said "{body.because}"'
     return await emit(who.room, "tool_result", from_=who.id, text=said, data=data)
+
+
+class DeckIn(BaseModel):
+    agent_id: str
+    state: Literal["start", "done"]
+
+
+_writing: set[asyncio.Task] = set()
+
+
+@app.post("/api/deck", status_code=202)
+async def presentation(body: DeckIn) -> dict:
+    """Someone started or stopped presenting. At the end the visualiser posts
+    its notes on every slide as one file, once it has read the last one."""
+    who = agents.agent(body.agent_id)
+    if not who or "screen" not in who.senses:
+        raise HTTPException(404, f"no screen reader called {body.agent_id!r}")
+    if body.state == deck.START:
+        return await emit(who.room, "chat", from_=who.id, text="reading the slides.", data={"deck": deck.START})
+    task = asyncio.create_task(_post_notes(who))
+    _writing.add(task)
+    task.add_done_callback(_writing.discard)
+    return {}
+
+
+async def _post_notes(who) -> None:
+    for _ in range(DECK_WAIT):  # each slide is read in turn, a few seconds apiece
+        if not deck.unread(store.since(0, who.room), who.id):
+            break
+        await asyncio.sleep(1)
+    md = deck.notes(store.since(0, who.room), who.id)
+    if not md:
+        await emit(who.room, "chat", from_=who.id, text="nothing on the slides worth noting.",
+                   data={"deck": deck.DONE})
+        return
+    await emit(who.room, "chat", from_=who.id, text="here are my notes on the slides.",
+               data={"deck": deck.DONE, "notes": md,
+                     "files": save_files([{"name": "slides.md", "content": md}])})
 
 
 @app.get("/api/questions")

@@ -44,14 +44,11 @@ async function presentingChanged(tab, on) {
   const { deck } = await chrome.storage.session.get('deck');
   if (on && !deck) {
     await chrome.storage.session.set({ deck: { tabId: tab.id, n: 0, last: null, pending: null, told: [] } });
-    await post('/api/say', { agent_id: agent.id, kind: 'chat', channel: agent.room,
-      text: "someone's presenting. i'll read every slide." }).catch(() => {});
+    await post('/api/deck', { agent_id: agent.id, state: 'start' }).catch(() => {});
   } else if (!on && deck) {
     await chrome.storage.session.remove('deck');
-    if (deck.n) {
-      await post('/api/say', { agent_id: agent.id, kind: 'chat', channel: agent.room,
-        text: `the presentation's over: ${deck.n} slide${deck.n === 1 ? '' : 's'} read.` }).catch(() => {});
-    }
+    // the visualiser posts its notes on every slide, as one file, once it has read the last
+    await post('/api/deck', { agent_id: agent.id, state: 'done' }).catch(() => {});
   }
 }
 

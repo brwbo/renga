@@ -35,6 +35,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from .crew import DEFAULT_MODEL, Line
+from ..deck import presenting
 from .jobs import (Job, aide, aides, brains, crew_job, eyes_job, hear_job, logfire_id, notes_job,
                    router_job)
 from .visualiser import Screen
@@ -452,6 +453,9 @@ def listen(renga: str, every: float = 2.0) -> None:
                 if not ready:
                     continue
                 log = client.get("/api/events", params={"channel": room_id}).json()
+                eyes = aide(room, agents, "visualiser")
+                if who == "pm" and not m.asked and eyes and presenting(log, eyes["id"]):
+                    continue  # the pm briefs once the visualiser's notes on the slides are out
                 if who in ("notes", "eyes") and not aide(room, agents, "note-taker" if who == "notes" else "visualiser"):
                     m.waiting, m.looks = 0, []  # the aide has left the room
                     continue

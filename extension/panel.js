@@ -427,9 +427,10 @@ function workFiles(files) {
   return grid;
 }
 
-// A look at the screen stays out of the chat: the visualiser says what was
-// on it, and the screenshot is only for the agents.
-const shown = (event) => !(event.kind === 'tool_result' && event.data?.frame);
+// A look at the screen stays out of the chat, and so do the visualiser's
+// notes on each slide: they come out as one notes file when the
+// presentation ends. The screenshots are only for the agents.
+const shown = (event) => !(event.kind === 'tool_result' && event.data?.frame) && !event.data?.quiet;
 
 function render(event, prev) {
   if (!SPOKEN.has(event.kind)) return statusLine(event);

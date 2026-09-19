@@ -116,8 +116,8 @@ class Router:
     async def run(self, seen: list[str], new: list[str], slides: list[str] = ()) -> AsyncIterator[Line]:
         """`seen` is what was said before (context), `new` is what to act on,
         `slides` what's been presented, as the visualiser read it."""
-        shown = ("what's been shown on screen in this meeting (the slides presented, the tabs "
-                 "shared), everything on it, as the visualiser wrote it down:\n\n" + "\n\n".join(slides)
+        shown = ("the visualiser's notes on what's been shown on screen in this meeting (the "
+                 "slides presented, the tabs shared). read them before you brief:\n\n" + "\n\n".join(slides)
                  + "\n\n" if slides else "")
         prompt = (shown + "the meeting so far, from its first line (context for any brief):\n\n"
                   + ("\n".join(seen) or "(nothing)")

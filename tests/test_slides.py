@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import time
 
 from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
@@ -46,7 +47,7 @@ def test_the_visualiser_writes_down_everything_on_a_slide():
 
     [line] = asyncio.run(go())
     assert line.text == "- q3 revenue up 18% on q2\n- emea is 41% of it"
-    assert line.data == {"slide": 2, "notes": line.text, "shown": "slide 2"}
+    assert line.data == {"slide": 2, "notes": line.text, "shown": "slide 2", "quiet": True}
     assert any("this is slide 2" in p for p in prompts)
 
 
@@ -73,7 +74,7 @@ def test_the_pm_has_every_slide_shown(client):
         return [line async for line in router.run(job.seen, job.new, job.slides)]
 
     asyncio.run(go())
-    assert any("what's been shown on screen in this meeting" in p and "up 18%" in p for p in prompts)
+    assert any("the visualiser's notes on what's been shown on screen" in p and "up 18%" in p for p in prompts)
 
 
 def test_the_visualiser_never_makes_material():
@@ -96,8 +97,50 @@ def test_the_visualiser_says_nothing_when_a_slide_has_nothing_useful():
     async def go(screen):
         return [line async for line in eyes.run([], [], screen) if line.kind != "thinking"]
 
-    assert asyncio.run(go(Screen(image=image, media_type="image/png", slide=3))) == []  # only the call on screen
+    # only the call on screen: a quiet line, so the notes file knows slide 3 was read
+    [line] = asyncio.run(go(Screen(image=image, media_type="image/png", slide=3)))
+    assert line.data == {"notes": "", "shown": "slide 3", "slide": 3, "quiet": True}
+    assert asyncio.run(go(Screen(image=image, media_type="image/png", title="a tab"))) == []  # asked by hand: silent
     assert prompts  # it did look
     prompts.clear()  # "as you can see" with nobody presenting: it doesn't look at all
     assert asyncio.run(go(Screen(image=image, media_type="image/png", because="as you can see"))) == []
     assert prompts == []
+
+
+def test_the_notes_on_the_slides_come_out_as_one_file_when_the_presentation_ends(client, monkeypatch):
+    from renga import main
+    monkeypatch.setattr(main, "DECK_WAIT", 3)
+    assert client.post("/api/deck", json={"agent_id": "visual", "state": "start"}).status_code == 202
+    for n in (1, 2, 3):
+        client.post("/api/screen", json={"agent_id": "visual", "url": "https://meet.google.com/x",
+                                         "title": "meet", "slide": n}).raise_for_status()
+    for n, notes in ((1, "- 9 banks connected"), (2, ""), (3, "- runs at 02:00, 55-90 min")):
+        client.post("/api/say", json={"agent_id": "visual", "channel": "main", "text": notes or "nothing",
+                                      "data": {"slide": n, "notes": notes, "quiet": True}}).raise_for_status()
+    assert client.post("/api/deck", json={"agent_id": "visual", "state": "done"}).status_code == 202
+    for _ in range(50):
+        last = client.get("/api/events?channel=main").json()[-1]
+        if (last.get("data") or {}).get("deck") == "done":
+            break
+        time.sleep(0.1)
+    assert last["text"] == "here are my notes on the slides."
+    [f] = last["data"]["files"]
+    assert f["name"] == "slides.md"
+    md = client.get(f["url"]).text
+    assert md == "# notes on the slides\n\n## slide 1\n\n- 9 banks connected\n\n## slide 3\n\n- runs at 02:00, 55-90 min\n"
+
+    rooms, agents = client.get("/api/rooms").json(), client.get("/api/agents").json()
+    meeting = next(r for r in rooms if r["id"] == "main")
+    log = client.get("/api/events?channel=main").json()
+    assert slides(meeting, agents, log) == ["slide 1:\n- 9 banks connected", "slide 3:\n- runs at 02:00, 55-90 min"]
+
+
+def test_the_pm_waits_for_the_notes_while_someone_presents():
+    from renga.deck import presenting, unread
+    start = {"from": "v", "kind": "chat", "data": {"deck": "start"}}
+    look = {"from": "v", "kind": "tool_result", "data": {"slide": 1}}
+    read = {"from": "v", "kind": "chat", "data": {"slide": 1, "notes": "- x", "quiet": True}}
+    done = {"from": "v", "kind": "chat", "data": {"deck": "done"}}
+    assert presenting([start, look], "v") and unread([start, look], "v") == {1}
+    assert presenting([start, look, read], "v") and unread([start, look, read], "v") == set()
+    assert not presenting([start, look, read, done], "v") and not presenting([], "v")
