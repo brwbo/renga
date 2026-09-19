@@ -5,7 +5,7 @@ def test_every_team_has_a_repo_and_rooms(client):
     for t in teams:
         assert any(r["team"] == t["id"] for r in rooms)
     assert {r["id"] for r in client.get("/api/rooms?team=renga").json()} == {
-        "main", "full-studio", "landing-page-sprint", "brand-campaign", "content-machine",
+        "main", "logfire", "full-studio", "landing-page-sprint", "brand-campaign", "content-machine",
         "product-team", "full-stack-design", "marketing-blitz"}
 
 
@@ -164,3 +164,8 @@ def test_extension_zip_points_at_this_server(client):
     manifest = json.loads(z.read("renga/manifest.json"))
     assert "http://testserver/*" in manifest["host_permissions"]
     assert "const SERVER = 'http://testserver'" in z.read("renga/panel.js").decode()
+
+
+def test_the_logfire_room_takes_no_briefs(client):
+    r = client.post("/api/delegate", json={"room": "logfire", "text": "x"})
+    assert r.status_code == 404

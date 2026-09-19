@@ -195,6 +195,13 @@ a { color: inherit; }
 }
 .card .jump:hover { text-decoration: underline; text-underline-offset: 3px; }
 
+/* the trace a #logfire line is about */
+.trace {
+  display: inline-block; margin-top: 4px; font: 12px var(--mono);
+  color: var(--brass); text-decoration: none;
+}
+a.trace:hover { text-decoration: underline; text-underline-offset: 3px; }
+
 /* a question waiting on you */
 .card.ask { border-left-color: var(--oxblood-lit); }
 .card.ask .card-label { color: var(--bone); }

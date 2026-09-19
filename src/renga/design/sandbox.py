@@ -98,11 +98,13 @@ def pump(out: Iterable[str], post: Callable[[str, dict], object]) -> int:
     return n
 
 
-def run(renga: str, team: str, brief: str, room: str = "") -> None:
-    """Run one brief in the team's sandbox and post what it says into renga."""
+def run(renga: str, team: str, brief: str, room: str = "", traceparent: str = "") -> None:
+    """Run one brief in the team's sandbox and post what it says into renga.
+    The traceparent puts the run in the same logfire trace as the hand-off."""
     import httpx
 
-    proc = sandbox(team).exec("python", "-m", "renga.design.inside", team, room, bufsize=1)
+    proc = sandbox(team).exec("python", "-m", "renga.design.inside", team, room, traceparent,
+                              bufsize=1)
     proc.stdin.write(brief)
     proc.stdin.write_eof()
     proc.stdin.drain()
@@ -131,7 +133,8 @@ def listen(renga: str, every: float = 2.0) -> None:
                 if e["kind"] == "task" and e["from"] == "pm" and leads.get(e["channel"]) == e["to"]:
                     print(f"#{e['channel']} got a brief, running it in the team's sandbox")
                     threading.Thread(target=run, daemon=True,
-                                     args=(renga, e["channel"], e["text"])).start()
+                                     args=(renga, e["channel"], e["text"], "",
+                                           (e.get("data") or {}).get("traceparent", ""))).start()
             time.sleep(every)
 
 

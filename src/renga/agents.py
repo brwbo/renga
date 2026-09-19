@@ -56,6 +56,8 @@ TEAMS: list[Team] = [
 ROOMS: list[Room] = [
     Room(id="main", team="renga", name="meeting", lead="pm",
          purpose="listens to the meeting, keeps the notes, hands work out"),
+    Room(id="logfire", team="renga", name="logfire",
+         purpose="the traces: every hand-off and agent run, how long it took and what it cost"),
     Room(id="rowbo-general", team="rowbo", name="general",
          purpose="everything about the site, until it needs its own room"),
 ]
@@ -71,6 +73,8 @@ ROSTER: list[Agent] = [
           role="running summary, decisions and action items"),
     Agent(id="actions", name="actions", room="main", initials="ac",
           role="starts on action items and leaves drafts"),
+    Agent(id="logfire", name="logfire", room="logfire", initials="lf",
+          role="reads the logfire traces and posts each run: time, tokens, errors"),
 ]
 
 # Every design team is a room the pm can hand material to, led by its lead.

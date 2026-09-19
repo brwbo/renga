@@ -12,6 +12,7 @@ import zipfile
 from pathlib import Path
 
 import logfire
+from logfire.propagate import get_context
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -140,14 +141,30 @@ async def delegate(body: DelegateIn) -> dict:
         raise HTTPException(409, "there's no pm to delegate the work")
     home = pm.room
     room = agents.room(body.room)
-    if not room or room.id == home or room.team != agents.room(home).team:
+    if not room or not room.lead or room.id == home or room.team != agents.room(home).team:
         raise HTTPException(404, f"no room called {body.room!r} to delegate to")
     # One line in the meeting room so you can see where the work went, and
-    # the brief itself in the other room, addressed to its lead.
-    await emit(home, "handoff", from_="pm", to=f"room:{room.id}",
-               text=f"sent to #{room.name}: {body.text}", data={"room": room.id})
-    return await emit(room.id, "task", from_="pm", to=room.lead, text=body.text,
-                      data={**(body.data or {}), "delegated_from": home})
+    # the brief itself in the other room, addressed to its lead. The hand-off
+    # starts a trace; the brief carries it, so the team's run joins it.
+    with logfire.span("pm delegates to #{room}", room=room.id) as span:
+        trace_id = f"{span.get_span_context().trace_id:032x}"
+        await emit(home, "handoff", from_="pm", to=f"room:{room.id}",
+                   text=f"sent to #{room.name}: {body.text}", data={"room": room.id})
+        task = await emit(room.id, "task", from_="pm", to=room.lead, text=body.text,
+                          data={**(body.data or {}), "delegated_from": home,
+                                "traceparent": get_context().get("traceparent", "")})
+        if agents.agent("logfire"):
+            await emit("logfire", "chat", from_="logfire", text=f"pm handed a brief to #{room.name}",
+                       data={"trace_id": trace_id, "room": room.id})
+    return task
+
+
+@app.get("/api/logfire")
+def logfire_project() -> dict:
+    """Where the chat links a trace to: RENGA_LOGFIRE_URL, or the project
+    logfire found for LOGFIRE_TOKEN (known a moment after startup)."""
+    found = getattr(logfire.DEFAULT_LOGFIRE_INSTANCE.config, "_project_url", None)
+    return {"url": os.environ.get("RENGA_LOGFIRE_URL") or found}
 
 
 @app.get("/api/events")

@@ -15,6 +15,7 @@ const el = (tag, cls, text) => {
 const state = {
   teams: [], rooms: [], agents: {}, room: null, since: 0, poll: null,
   events: {}, unread: {}, questions: {}, answered: new Set(), last: null,
+  logfire: null,  // the logfire project a trace id links into, when there is one
 };
 
 // ---- api --------------------------------------------------------------
@@ -398,7 +399,7 @@ function statusLine(event) {
   return wrap;
 }
 
-function messageRow(event, continues) {
+function messageRow(event, continues, prev) {
   const row = el('div', 'msg' + (continues ? ' cont' : ''));
   const body = el('div');
   if (!continues) {
@@ -425,10 +426,24 @@ function messageRow(event, continues) {
   } else {
     body.appendChild(el('div', 'tx', event.text || ''));
     if (event.kind === 'question') body.appendChild(questionCard(event));
+    // Only where the trace changes: the lines under it belong to the same one.
+    const trace = event.data?.trace_id;
+    if (trace && trace !== prev?.data?.trace_id) body.appendChild(traceLink(trace));
   }
 
   row.append(avatar(event.from), body);
   return row;
+}
+
+// The trace a #logfire line is about: a link into logfire when the server
+// knows the project, the bare id to search for when it doesn't.
+function traceLink(id) {
+  const short = `trace ${id.slice(0, 8)}`;
+  if (!state.logfire) return el('div', 'trace', short);
+  const link = el('a', 'trace', `${short} →`);
+  link.href = `${state.logfire.replace(/\/$/, '')}?q=${encodeURIComponent(`trace_id='${id}'`)}`;
+  link.target = '_blank'; link.rel = 'noopener noreferrer'; link.title = id;
+  return link;
 }
 
 function renderLog() {
@@ -453,7 +468,7 @@ function render(event, prev) {
   const continues = prev && SPOKEN.has(prev.kind) && prev.from === event.from
     && prev.to === event.to && event.kind === 'chat' && prev.kind === 'chat'
     && event.ts - prev.ts < 120000;
-  return messageRow(event, continues);
+  return messageRow(event, continues, prev);
 }
 
 function append(event) {
@@ -516,6 +531,7 @@ $('composer').addEventListener('submit', async (e) => {
     state.teams = teams;
     state.rooms = rooms;
     for (const a of agents) state.agents[a.id] = a;
+    state.logfire = (await api('/api/logfire').catch(() => ({}))).url || null;
     await loadQuestions();
     await pollEvents();
     state.unread = {};
