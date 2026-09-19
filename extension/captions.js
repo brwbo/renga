@@ -9,8 +9,11 @@
 'use strict';
 
 (() => {
-  const STABLE_MS = 1500;   // the captions count as said once they stop changing
-  const POLL_MS = 500;
+  // Lines above the one being spoken are final, so they go at once. Only the
+  // last line, still growing as the speaker talks, waits to settle; waiting
+  // on the whole region meant nothing went out until the speaker paused.
+  const STABLE_MS = 700;    // the line being spoken counts as said once it stops changing
+  const POLL_MS = 300;
   const BEAT_MS = 10000;    // re-report the status, so a restarted worker knows it
 
   const findRegion = () =>
@@ -48,6 +51,12 @@
 
   let sent = [], lastText = '', lastChange = 0;
 
+  function post(lines) {
+    try {
+      chrome.runtime.sendMessage({ type: 'caption', text: lines.join('\n') });
+    } catch (_) { /* extension reloaded; this tab's script is orphaned */ }
+  }
+
   function tick() {
     const region = findRegion();
     if (!region) { report('missing'); return; }
@@ -55,16 +64,18 @@
 
     const text = region.innerText.trim();
     const now = Date.now();
-    if (text !== lastText) { lastText = text; lastChange = now; return; }
-    if (!text || now - lastChange < STABLE_MS) return;
-
+    if (text !== lastText) { lastText = text; lastChange = now; }
+    if (!text) return;
     const cur = text.split('\n').map((l) => l.trim()).filter(Boolean);
     const lines = fresh(sent, cur);
-    sent = cur;
     if (!lines.length) return;
-    try {
-      chrome.runtime.sendMessage({ type: 'caption', text: lines.join('\n') });
-    } catch (_) { /* extension reloaded; this tab's script is orphaned */ }
+    if (now - lastChange >= STABLE_MS) {  // everything has settled: all of it
+      sent = cur;
+      post(lines);
+    } else if (lines.length > 1) {  // still talking: all but the line being spoken
+      sent = cur.slice(0, -1);
+      post(lines.slice(0, -1));
+    }
   }
 
   setInterval(tick, POLL_MS);
