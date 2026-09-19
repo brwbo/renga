@@ -11,24 +11,101 @@
 </head>
 <body>
 
-<div class="app">
+<div class="home" id="home" hidden>
+  <header class="home-head">
+    <a class="wordmark" href="#/">renga</a>
+    <span class="conn" title="connecting"><i></i><span class="sr">connecting</span></span>
+  </header>
+  <main class="home-body">
+    <div class="home-title">
+      <div>
+        <h1>teams</h1>
+        <p class="purpose">each team works on one repo and talks in its own rooms.</p>
+      </div>
+      <div class="home-actions">
+        <button type="button" id="get-extension" class="btn ghost-btn" aria-expanded="false" aria-controls="extension-help">chrome extension</button>
+        <button type="button" id="new-team" class="btn" aria-expanded="false" aria-controls="team-form">new team</button>
+      </div>
+    </div>
+    <div id="home-error" class="err" role="alert" hidden></div>
+
+    <section id="extension-help" class="team-form ext-help" aria-labelledby="ext-title" hidden>
+      <h2 id="ext-title">add the chrome extension</h2>
+      <p class="ext-lede">a side panel with one team's chat. it reads your tabs or meet calls when the team has an agent for it.</p>
+      <ol class="steps">
+        <li>
+          <a class="btn primary" href="/api/extension.zip" download>download renga-extension.zip</a>
+          <span class="step-note">it's set up to talk to this server.</span>
+        </li>
+        <li>unzip it. you get a <code>renga</code> folder.</li>
+        <li>
+          open <code>chrome://extensions</code>
+          <button type="button" id="copy-extensions-url" class="copy">copy</button>
+          <span class="step-note">chrome won't open it from a link, so paste it into the address bar.</span>
+        </li>
+        <li>turn on <b>developer mode</b> (top right), click <b>load unpacked</b> and pick the <code>renga</code> folder.</li>
+        <li>pin renga from the puzzle-piece menu, click it, and pick a team.</li>
+      </ol>
+    </section>
+
+    <form id="team-form" class="team-form" hidden novalidate>
+      <h2>new team</h2>
+      <div class="fields">
+        <label>name
+          <input name="name" required maxlength="40" placeholder="umbra" autocomplete="off">
+        </label>
+        <label>repo
+          <input name="repo" required maxlength="140" placeholder="owner/name" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="wide">what it's for <span class="opt">optional</span>
+          <input name="purpose" maxlength="200" placeholder="routes drones around restricted airspace" autocomplete="off">
+        </label>
+        <label class="wide">rooms <span class="opt">comma separated</span>
+          <input name="rooms" value="general" autocomplete="off">
+        </label>
+      </div>
+      <fieldset class="senses">
+        <legend>agents to start with <span class="opt">the extension reads for these</span></legend>
+        <label class="check"><input type="checkbox" name="senses" value="screen">
+          <span><b>visual</b> reads whatever tab you're on</span></label>
+        <label class="check"><input type="checkbox" name="senses" value="captions">
+          <span><b>transcript</b> hears meet calls through their captions</span></label>
+      </fieldset>
+      <p id="form-error" class="form-err" role="alert" hidden></p>
+      <div class="form-actions">
+        <button type="submit" class="btn primary">create team</button>
+        <button type="button" id="cancel-team" class="btn ghost">cancel</button>
+      </div>
+    </form>
+
+    <div id="teams" class="teams"></div>
+  </main>
+</div>
+
+<div class="app" id="app" hidden>
   <aside class="side" aria-label="rooms">
     <div class="brand">
-      <span class="wordmark">renga</span>
-      <span class="conn" id="conn" title="connecting"><i></i><span class="sr">connecting</span></span>
+      <a class="wordmark" href="#/">renga</a>
+      <span class="conn" title="connecting"><i></i><span class="sr">connecting</span></span>
+    </div>
+
+    <a class="back" href="#/">← all teams</a>
+    <div class="team-head">
+      <div id="team-name" class="team-name"></div>
+      <a id="team-repo" class="repo" target="_blank" rel="noopener"></a>
     </div>
 
     <h2 class="label">rooms</h2>
     <nav id="rooms" class="rooms"></nav>
-
-    <h2 class="label">in this room</h2>
-    <ul id="members" class="members"></ul>
   </aside>
 
   <main class="room">
     <header class="room-head">
-      <h1 id="room-name">meeting</h1>
-      <p id="room-purpose" class="purpose"></p>
+      <div>
+        <h1 id="room-name">meeting</h1>
+        <p id="room-purpose" class="purpose"></p>
+      </div>
+      <button type="button" id="crew-toggle" class="btn crew-toggle" aria-expanded="false" aria-controls="crew">agents</button>
     </header>
 
     <div id="error" class="err" role="alert" hidden></div>
@@ -41,6 +118,34 @@
       <button type="submit">send</button>
     </form>
   </main>
+
+  <aside class="crew" id="crew" aria-labelledby="crew-title">
+    <div class="crew-head">
+      <h2 id="crew-title" class="label">in this room</h2>
+      <button type="button" id="crew-close" class="crew-close" aria-label="close agents">×</button>
+    </div>
+    <ul id="members" class="members"></ul>
+
+    <button type="button" id="add-agent" class="add-agent" aria-expanded="false" aria-controls="agent-form">+ add agent</button>
+    <form id="agent-form" class="agent-form" hidden novalidate>
+      <label>name
+        <input name="name" maxlength="24" placeholder="researcher" autocomplete="off">
+      </label>
+      <label>what it does
+        <textarea name="role" maxlength="200" rows="3" placeholder="digs up sources and checks the numbers"></textarea>
+      </label>
+      <fieldset class="senses">
+        <legend>reads <span class="opt">optional, through the extension</span></legend>
+        <label class="check"><input type="checkbox" name="senses" value="screen"><span>the tab you're on</span></label>
+        <label class="check"><input type="checkbox" name="senses" value="captions"><span>meet calls</span></label>
+      </fieldset>
+      <p id="agent-error" class="form-err" role="alert" hidden></p>
+      <div class="form-actions">
+        <button type="submit" class="btn primary">add</button>
+        <button type="button" id="cancel-agent" class="btn ghost">cancel</button>
+      </div>
+    </form>
+  </aside>
 </div>
 
 <script src="/app.js"></script>

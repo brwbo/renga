@@ -1,6 +1,6 @@
 """The append-only event log, the single source of truth the room is a view
-of. Carried over from agentville. One SQLite file for now; a hosted store
-replaces it when the agents move onto modal."""
+of. One SQLite file for now; a hosted store replaces it when the agents move
+onto modal."""
 
 import json
 import os

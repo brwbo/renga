@@ -11,10 +11,19 @@
 
 <header class="top">
   <span class="wordmark">renga</span>
+  <label for="team" class="sr">team</label>
+  <select id="team" class="team-pick" disabled></select>
   <span class="conn" id="conn" title="connecting"><i></i><span class="sr">connecting</span></span>
 </header>
 
-<div id="listen" class="listen" role="status"></div>
+<!-- what this team's agents can take in. each line shows only when the team
+     has an agent with that sense. -->
+<div id="listen" class="listen" role="status" hidden></div>
+<div id="look" class="look" hidden>
+  <button type="button" id="read-screen" class="read-btn"></button>
+  <span id="look-note" class="look-note"></span>
+</div>
+<p id="deaf" class="deaf" hidden>no agent in this team reads the screen or hears calls. add one when you make a team.</p>
 
 <nav id="rooms" class="rooms" aria-label="rooms"></nav>
 

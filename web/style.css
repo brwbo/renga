@@ -35,7 +35,7 @@ button { cursor: pointer; }
 [hidden] { display: none !important; }
 
 /* ------------------------------------------------------------------ layout */
-.app { display: grid; grid-template-columns: 260px 1fr; height: 100dvh; }
+.app { display: grid; grid-template-columns: 240px 1fr 280px; height: 100dvh; }
 .side {
   border-right: 1px solid var(--night-edge); padding: 20px 14px;
   display: flex; flex-direction: column; gap: 6px; overflow-y: auto;
@@ -45,7 +45,8 @@ button { cursor: pointer; }
 
 /* ------------------------------------------------------------------- side */
 .brand { display: flex; align-items: center; justify-content: space-between; padding: 0 8px 18px; }
-.wordmark { font-weight: 600; font-size: 18px; letter-spacing: -.01em; }
+.wordmark { font-weight: 600; font-size: 18px; letter-spacing: -.01em; color: var(--bone); text-decoration: none; }
+a { color: inherit; }
 .conn i {
   display: block; width: 8px; height: 8px; border-radius: 50%;
   background: var(--faint); transition: background .3s var(--ease);
@@ -57,24 +58,73 @@ button { cursor: pointer; }
   letter-spacing: .04em;
 }
 
+.back {
+  padding: 4px 8px; font-size: 14px; color: var(--muted); text-decoration: none;
+  border-radius: var(--radius); transition: color .15s var(--ease);
+}
+.back:hover { color: var(--bone); }
+.team-head { padding: 6px 8px 0; }
+.team-name { font-weight: 600; font-size: 16px; }
+.repo {
+  font: 400 12px/1.4 var(--mono); color: var(--muted); text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.repo:hover { color: var(--brass); }
+
 .rooms { display: flex; flex-direction: column; gap: 2px; }
 .room-btn {
   display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px;
   padding: 8px 10px; border: 0; border-radius: var(--radius); background: none;
-  text-align: left; color: var(--muted); transition: background .15s var(--ease), color .15s var(--ease);
+  text-align: left; color: var(--muted); text-decoration: none; transition: background .15s var(--ease), color .15s var(--ease);
 }
 .room-btn:hover { background: var(--night-hover); color: var(--bone); }
-.room-btn[aria-current="true"] { background: var(--night-raised); color: var(--bone); }
+.room-btn[aria-current="page"] { background: var(--night-raised); color: var(--bone); }
 .room-btn .hash { font-family: var(--mono); color: var(--faint); }
 .room-btn .count {
   margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 10px;
   background: var(--oxblood); color: var(--bone); font: 500 12px/20px var(--mono); text-align: center;
 }
 
+/* the agents rail, on the right */
+.crew {
+  border-left: 1px solid var(--night-edge); padding: 20px 14px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 6px; background: var(--night);
+}
+.crew-head { display: flex; align-items: center; justify-content: space-between; }
+.crew-head .label { margin-top: 0; }
+.crew-close {
+  display: none; width: 36px; height: 36px; border: 0; border-radius: var(--radius);
+  background: none; color: var(--muted); font-size: 22px; line-height: 1;
+}
+.crew-close:hover { color: var(--bone); background: var(--night-hover); }
+.crew-toggle { display: none; }
+.add-agent {
+  margin-top: 8px; min-height: 40px; padding: 0 10px; text-align: left;
+  border: 1px dashed var(--night-edge); border-radius: var(--radius); background: none;
+  color: var(--muted); font-size: 14px; transition: color .15s var(--ease), border-color .15s var(--ease);
+}
+.add-agent:hover { color: var(--bone); border-color: var(--faint); }
+.agent-form {
+  margin-top: 8px; padding: 14px; border: 1px solid var(--night-edge); border-left: 2px solid var(--oxblood-lit);
+  border-radius: var(--radius); background: var(--night-raised); animation: in .25s var(--ease);
+}
+.agent-form > label { display: block; margin-bottom: 12px; font-size: 13px; color: var(--muted); }
+.agent-form input:not([type=checkbox]), .agent-form textarea {
+  display: block; width: 100%; margin-top: 6px; padding: 8px 10px; border-radius: var(--radius);
+  border: 1px solid var(--night-edge); background: var(--night); font: inherit; font-size: 14px; color: var(--bone);
+  resize: vertical; transition: border-color .15s var(--ease);
+}
+.agent-form input:hover, .agent-form textarea:hover { border-color: var(--faint); }
+.agent-form ::placeholder { color: var(--faint); }
+.agent-form .senses { margin-top: 0; }
+.agent-form .check { margin: 0 -8px; padding: 6px 8px; }
+.agent-form .form-actions { margin-top: 12px; }
+
 .members { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .members li { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--radius); }
 .members .m-name { font-size: 14px; }
 .members .m-role { font-size: 12px; color: var(--faint); line-height: 1.3; }
+.members .m-none { font-size: 13px; color: var(--faint); }
 .members .lead-mark { font: 500 11px var(--mono); color: var(--brass); margin-left: 6px; }
 
 /* ----------------------------------------------------------------- avatar */
@@ -90,7 +140,10 @@ button { cursor: pointer; }
 .av.me { background: none; border-color: var(--brass); color: var(--brass); }
 
 /* ------------------------------------------------------------------- room */
-.room-head { padding: 20px 28px 16px; border-bottom: 1px solid var(--night-edge); }
+.room-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 20px 28px 16px; border-bottom: 1px solid var(--night-edge);
+}
 .room-head h1 { margin: 0; font-size: 18px; font-weight: 600; }
 .purpose { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
 
@@ -136,11 +189,11 @@ button { cursor: pointer; }
   border-radius: var(--radius); background: var(--night-raised);
 }
 .card .card-label { font: 500 12px var(--mono); color: var(--brass); margin-bottom: 4px; }
-.card button.jump {
-  margin-top: 8px; padding: 0; border: 0; background: none; color: var(--brass);
-  font-size: 14px;
+.card .jump {
+  display: inline-block; margin-top: 8px; color: var(--brass);
+  font-size: 14px; text-decoration: none;
 }
-.card button.jump:hover { text-decoration: underline; text-underline-offset: 3px; }
+.card .jump:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* a question waiting on you */
 .card.ask { border-left-color: var(--oxblood-lit); }
@@ -154,6 +207,147 @@ button { cursor: pointer; }
 .opts button:hover { border-color: var(--oxblood-lit); background: var(--night-hover); }
 .opts input { flex: 1; min-width: 180px; }
 .answered { margin-top: 8px; font: 400 13px var(--mono); color: var(--brass); }
+
+/* -------------------------------------------------------------- teams page */
+.home { min-height: 100dvh; }
+.home-head {
+  display: flex; align-items: center; justify-content: space-between;
+  max-width: 1080px; margin: 0 auto; padding: 20px 28px;
+}
+.home-body { max-width: 1080px; margin: 0 auto; padding: 24px 28px 64px; }
+.home-body h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -.01em; }
+.home-body .err { margin: 16px 0 0; }
+.teams {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px; margin-top: 28px;
+}
+.team-card {
+  display: flex; flex-direction: column; padding: 18px 18px 10px;
+  border: 1px solid var(--night-edge); border-radius: var(--radius); background: var(--night-raised);
+}
+.team-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.team-card h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.team-purpose { margin: 4px 0 14px; font-size: 14px; color: var(--muted); }
+.team-rooms { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
+.team-room {
+  display: block; padding: 8px; border-radius: var(--radius); text-decoration: none;
+  transition: background .15s var(--ease);
+}
+.team-room:hover { background: var(--night-hover); }
+.tr-top { display: flex; align-items: center; gap: 8px; }
+.tr-top .hash { font-family: var(--mono); color: var(--faint); }
+.tr-name { font-weight: 500; }
+.tr-count { font: 400 12px var(--mono); color: var(--faint); }
+.tr-top .count {
+  margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 10px;
+  background: var(--oxblood); color: var(--bone); font: 500 12px/20px var(--mono); text-align: center;
+}
+.tr-last {
+  margin: 2px 0 0 18px; font-size: 13px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ----------------------------------------------------------- new team form */
+.home-title { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.btn {
+  min-height: 40px; padding: 0 16px; border-radius: var(--radius); flex: none;
+  border: 1px solid var(--night-edge); background: var(--night-raised); color: var(--bone); font-weight: 500;
+  transition: background .15s var(--ease), border-color .15s var(--ease);
+}
+.btn:hover { background: var(--night-hover); border-color: var(--faint); }
+.btn.primary { background: var(--oxblood); border-color: var(--oxblood); }
+.btn.primary:hover { background: var(--oxblood-lit); border-color: var(--oxblood-lit); }
+.btn.primary:active { background: var(--oxblood-deep); }
+.btn.ghost { background: none; border-color: transparent; color: var(--muted); }
+.btn.ghost:hover { color: var(--bone); background: none; }
+.btn:disabled { opacity: .6; cursor: default; }
+
+.team-form {
+  margin-top: 24px; padding: 20px; max-width: 720px;
+  border: 1px solid var(--night-edge); border-left: 2px solid var(--oxblood-lit);
+  border-radius: var(--radius); background: var(--night-raised); animation: in .25s var(--ease);
+}
+.team-form h2 { margin: 0 0 16px; font-size: 16px; font-weight: 600; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.fields label { display: block; font-size: 13px; color: var(--muted); }
+.fields input { display: block; width: 100%; margin-top: 6px; }
+.fields .wide { grid-column: 1 / -1; }
+.fields input {
+  min-height: 40px; padding: 8px 10px; border-radius: var(--radius);
+  border: 1px solid var(--night-edge); background: var(--night); font-size: 15px;
+  transition: border-color .15s var(--ease);
+}
+.fields input:hover { border-color: var(--faint); }
+.fields input::placeholder { color: var(--faint); }
+.opt { font: 400 11px var(--mono); color: var(--faint); margin-left: 4px; }
+.senses { margin: 18px 0 0; padding: 0; border: 0; }
+.senses legend { padding: 0; margin-bottom: 8px; font-size: 13px; color: var(--muted); }
+.check {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 0 -10px;
+  border-radius: var(--radius); font-size: 14px; color: var(--muted); cursor: pointer;
+}
+.check:hover { background: var(--night-hover); }
+.check b { font-weight: 500; color: var(--bone); margin-right: 4px; }
+.check input { width: 16px; height: 16px; margin: 0; accent-color: var(--oxblood-lit); }
+.form-err { margin: 14px 0 0; font-size: 14px; color: var(--hot); }
+.form-actions { display: flex; gap: 8px; margin-top: 18px; }
+
+.home-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.btn.ghost-btn { background: none; }
+a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+.btn.danger { background: var(--oxblood); border-color: var(--oxblood); }
+.btn.danger:hover { background: var(--oxblood-lit); border-color: var(--oxblood-lit); }
+
+/* the extension, step by step */
+.ext-help { border-left-color: var(--brass); }
+.ext-lede { margin: -8px 0 16px; font-size: 14px; color: var(--muted); }
+.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 14px; font-size: 15px; }
+.steps li::marker { font-family: var(--mono); color: var(--brass); }
+.steps li { padding-left: 4px; }
+.steps code { font: 400 13px var(--mono); padding: 2px 6px; border-radius: 3px; background: var(--night); border: 1px solid var(--night-edge); }
+.step-note { display: block; margin-top: 4px; font-size: 13px; color: var(--faint); }
+.steps .btn { margin-top: -4px; }
+.copy {
+  margin-left: 6px; padding: 2px 8px; min-height: 28px; border-radius: var(--radius);
+  border: 1px solid var(--night-edge); background: none; color: var(--muted); font: 400 12px var(--mono);
+}
+.copy:hover { color: var(--bone); border-color: var(--faint); }
+
+/* deleting: a quiet button until you mean it, then a yes/no line */
+.team-card-head .del {
+  margin-left: auto; padding: 2px 6px; border: 0; border-radius: var(--radius); background: none;
+  color: var(--faint); font-size: 12px; opacity: 0; transition: opacity .15s var(--ease), color .15s var(--ease);
+}
+.team-card:hover .del, .team-card .del:focus-visible { opacity: 1; }
+.team-card-head .del:hover { color: var(--hot); }
+.team-card-head .repo { order: 0; }
+.confirm {
+  margin-top: 10px; padding: 10px 12px; border-radius: var(--radius);
+  border: 1px solid var(--night-edge); border-left: 2px solid var(--hot); background: var(--night);
+  animation: in .2s var(--ease);
+}
+.confirm-q { margin: 0; font-size: 14px; }
+.confirm .form-actions { margin-top: 10px; }
+.confirm .btn { min-height: 34px; padding: 0 12px; font-size: 13px; }
+.members li { position: relative; flex-wrap: wrap; }
+.members li > div:not(.confirm) { flex: 1; min-width: 0; }
+.members .confirm { flex-basis: 100%; margin-top: 6px; }
+.m-del {
+  flex: none; width: 28px; height: 28px; border: 0; border-radius: var(--radius); background: none;
+  color: var(--faint); font-size: 18px; line-height: 1; opacity: 0;
+  transition: opacity .15s var(--ease), color .15s var(--ease), background .15s var(--ease);
+}
+.members li:hover .m-del, .m-del:focus-visible { opacity: 1; }
+.m-del:hover { color: var(--hot); background: var(--night-hover); }
+@media (hover: none) { .m-del, .team-card-head .del { opacity: 1; } }
+
+/* what a screen reader saw */
+.seen .shot {
+  display: block; width: min(360px, 100%); margin: 4px 0 8px 48px;
+  border: 1px solid var(--night-edge); border-radius: var(--radius); overflow: hidden;
+}
+.seen .shot:hover { border-color: var(--faint); }
+.seen img { display: block; width: 100%; height: auto; }
 
 /* ---------------------------------------------------------------- composer */
 .composer {
@@ -178,11 +372,30 @@ button { cursor: pointer; }
 }
 
 /* ------------------------------------------------------------------ mobile */
+/* narrower: the agents rail becomes a drawer from the right */
+@media (max-width: 1100px) {
+  .app { grid-template-columns: 240px 1fr; }
+  .crew-toggle { display: inline-block; }
+  .crew-close { display: block; }
+  .crew {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 10; width: min(320px, 100vw);
+    transform: translateX(100%); visibility: hidden;
+    transition: transform .25s var(--ease), visibility 0s linear .25s;
+    box-shadow: -12px 0 32px rgba(0, 0, 0, .4);
+  }
+  .crew.open { transform: none; visibility: visible; transition: transform .25s var(--ease); }
+}
+
 @media (max-width: 760px) {
   .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .side { flex-direction: row; align-items: center; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--night-edge); overflow-x: auto; }
   .brand { padding: 0 8px 0 0; gap: 10px; }
-  .side .label, .members { display: none; }
+  .side .label, .team-head { display: none; }
+  .back { white-space: nowrap; }
+  .home-head, .home-body { padding-left: 16px; padding-right: 16px; }
+  .teams { grid-template-columns: 1fr; }
+  .fields { grid-template-columns: 1fr; }
+  .home-title { align-items: flex-start; }
   .rooms { flex-direction: row; }
   .room-btn { width: auto; }
   .room { height: auto; min-height: 0; }

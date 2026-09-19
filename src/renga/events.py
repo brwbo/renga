@@ -1,5 +1,5 @@
-"""The shape of one line in the room. Carried over from agentville: `text` is
-the plain english people read, `data` is the typed payload agents act on.
+"""The shape of one line in the room: `text` is the plain english people
+read, `data` is the typed payload agents act on.
 Every message, question, hand-off and status line is one of these."""
 
 from typing import Any, Literal

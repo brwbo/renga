@@ -1,6 +1,7 @@
-// the side panel: renga's rooms, narrowed to sit beside a meet call, plus a
-// line saying whether the transcript is hearing the call. Same event log and
-// api as web/app.js; the layout is what changes.
+// the side panel: one team's chat, narrowed to sit beside whatever you're
+// doing. What it reads depends on the team's agents: a screen agent gets a
+// button that reads the tab you're on, a captions agent hears meet calls.
+// Same event log and api as web/app.js; the layout is what changes.
 'use strict';
 
 const SERVER = 'http://localhost:8020';
@@ -15,7 +16,7 @@ const el = (tag, cls, text) => {
 };
 
 const state = {
-  teams: [], agents: {}, room: 'main', since: 0,
+  teams: [], allRooms: [], rooms: [], agents: {}, team: null, room: null, since: 0,
   events: {}, unread: {}, questions: {}, answered: new Set(),
 };
 
@@ -48,21 +49,38 @@ function showError(message) {
   $('error').hidden = !message;
 }
 
-// ---- is the transcript hearing the call? ------------------------------
-const LISTEN = {
-  on: ['on', 'listening. meet\'s captions are going to the meeting room.'],
-  missing: ['warn', 'turn on captions in meet (cc button) so the transcript can hear the call.'],
-  none: ['', 'open a google meet tab to start listening.'],
-};
+// ---- what this team's agents take in -----------------------------------
+// The agent in the current team with a sense, if there is one.
+const senser = (sense) => Object.values(state.agents).find(
+  (a) => a.senses?.includes(sense) && state.rooms.some((r) => r.id === a.room));
 
 function showListen(status) {
-  const [cls, text] = LISTEN[status] || LISTEN.none;
+  const who = senser('captions');
+  const where = who && `#${room(who.room).name}`;
+  const [cls, text] = {
+    on: ['on', `listening. meet's captions are going to ${where} as ${who?.name}.`],
+    missing: ['warn', `turn on captions in meet (cc button) so ${who?.name} can hear the call.`],
+  }[status] || ['', `open a google meet tab and ${who?.name} will listen.`];
   const box = $('listen');
   box.className = 'listen' + (cls ? ' ' + cls : '');
   box.textContent = text;
 }
 
+function renderSenses() {
+  const hears = senser('captions');
+  const sees = senser('screen');
+  $('listen').hidden = !hears;
+  $('look').hidden = !sees;
+  $('deaf').hidden = Boolean(hears || sees);
+  if (sees) {
+    $('read-screen').textContent = `${sees.name}: read this tab`;
+    $('look-note').textContent = `posts to #${room(sees.room).name}`;
+  }
+  if (hears) checkListen();
+}
+
 async function checkListen() {
+  if (!senser('captions')) return;
   if (!hasChrome) { showListen(null); return; }
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || !/^https:\/\/meet\.google\.com\/.+/.test(tab.url || '')) { showListen(null); return; }
@@ -79,12 +97,12 @@ if (hasChrome) {
 }
 
 // ---- people and rooms -------------------------------------------------
-const team = (id) => state.teams.find((t) => t.id === id);
-const isLead = (id) => state.teams.some((t) => t.lead === id);
+const room = (id) => state.rooms.find((r) => r.id === id);
+const isLead = (id) => state.rooms.some((r) => r.lead === id);
 
 function nameOf(id) {
   if (id === 'admin') return 'you';
-  if (id && id.startsWith('team:')) return `${team(id.slice(5))?.name || id.slice(5)} team`;
+  if (id && id.startsWith('room:')) return `#${room(id.slice(5))?.name || id.slice(5)}`;
   return state.agents[id]?.name || id;
 }
 
@@ -101,7 +119,7 @@ const clock = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', min
 function renderRooms() {
   const nav = $('rooms');
   nav.replaceChildren();
-  for (const t of state.teams) {
+  for (const t of state.rooms) {
     const b = el('button', 'room-btn');
     b.type = 'button';
     b.setAttribute('aria-current', String(t.id === state.room));
@@ -117,10 +135,76 @@ function renderRooms() {
   }
 }
 
+// Whatever the page shows as text. Runs inside the tab, so it can only use
+// what's in scope there.
+function pageText() {
+  return (document.body?.innerText || '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 20000);
+}
+
+async function readScreen() {
+  const who = senser('screen');
+  if (!who) return;
+  if (!hasChrome) { showError('reading the screen only works inside the chrome extension.'); return; }
+  const btn = $('read-screen');
+  btn.disabled = true;
+  try {
+    // Asked the first time, from the click, so chrome shows its prompt once.
+    const granted = await chrome.permissions.request({ origins: ['<all_urls>'] });
+    if (!granted) throw new Error('renga needs to see your tabs to read them. click again and allow it.');
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !/^https?:/.test(tab.url || '')) throw new Error("can't read this tab. open a normal web page and try again.");
+    $('look-note').textContent = 'reading…';
+    const image = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 60 });
+    let text = '';
+    try {
+      const [res] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: pageText });
+      text = res?.result || '';
+    } catch (_) { /* some pages block scripts; the screenshot still goes */ }
+    await api('/api/screen', {
+      method: 'POST',
+      body: JSON.stringify({ agent_id: who.id, url: tab.url, title: tab.title || '', text, image }),
+    });
+    showError('');
+    if (state.room !== who.room) openRoom(who.room);
+    await pollEvents();
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    btn.disabled = false;
+    $('look-note').textContent = `posts to #${room(who.room).name}`;
+  }
+}
+
+$('read-screen').addEventListener('click', readScreen);
+
+// ---- which team the panel shows ----------------------------------------
+function renderTeamPick() {
+  const pick = $('team');
+  pick.replaceChildren();
+  for (const t of state.teams) {
+    const o = el('option', null, t.name);
+    o.value = t.id;
+    o.selected = t.id === state.team;
+    pick.appendChild(o);
+  }
+  pick.disabled = false;
+}
+
+function chooseTeam(id) {
+  state.team = id;
+  state.rooms = state.allRooms.filter((r) => r.team === id);
+  if (hasChrome) chrome.storage.local.set({ team: id }); // the worker reads it for captions
+  renderTeamPick();
+  renderSenses();
+  openRoom(state.rooms[0].id);
+}
+
+$('team').addEventListener('change', (e) => chooseTeam(e.target.value));
+
 function openRoom(id) {
   state.room = id;
   state.unread[id] = 0;
-  $('c-input').placeholder = `message #${team(id).name}`;
+  $('c-input').placeholder = `message #${room(id).name}`;
   renderRooms();
   renderLog();
 }
@@ -172,7 +256,15 @@ function statusLine(event) {
   const row = el('div', cls);
   row.append(el('b', null, nameOf(event.from)),
              document.createTextNode(` ${event.text || event.kind.replace('_', ' ')}`));
-  return row;
+  if (!event.data?.frame) return row;
+  const wrap = el('div', 'seen');
+  const link = el('a', 'shot');
+  link.href = event.data.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+  const img = el('img'); img.src = SERVER + event.data.frame;
+  img.alt = `screenshot of ${event.data.title || event.data.url}`;
+  link.appendChild(img);
+  wrap.append(row, link);
+  return wrap;
 }
 
 function messageRow(event, continues) {
@@ -185,17 +277,17 @@ function messageRow(event, continues) {
     meta.appendChild(el('span', 'time', clock(event.ts)));
     body.appendChild(meta);
   }
-  if (event.kind === 'handoff' && event.data?.team) {
+  if (event.kind === 'handoff' && room(event.data?.room)) {
     const card = el('div', 'card');
-    card.append(el('div', 'card-label', `delegated to ${nameOf('team:' + event.data.team)}`),
-                el('div', 'tx', (event.text || '').replace(/^sent to the \w+ team: /, '')));
-    const jump = el('button', 'jump', `open ${team(event.data.team)?.name} →`); jump.type = 'button';
-    jump.addEventListener('click', () => openRoom(event.data.team));
+    card.append(el('div', 'card-label', `delegated to ${nameOf('room:' + event.data.room)}`),
+                el('div', 'tx', (event.text || '').replace(/^sent to #[\w-]+: /, '')));
+    const jump = el('button', 'jump', `open ${room(event.data.room).name} →`); jump.type = 'button';
+    jump.addEventListener('click', () => openRoom(event.data.room));
     card.appendChild(jump);
     body.appendChild(card);
   } else if (event.kind === 'task' && event.data?.delegated_from) {
     const card = el('div', 'card');
-    card.append(el('div', 'card-label', `brief from ${team(event.data.delegated_from)?.name}`),
+    card.append(el('div', 'card-label', `brief from ${room(event.data.delegated_from)?.name}`),
                 el('div', 'tx', event.text || ''));
     body.appendChild(card);
   } else {
@@ -277,14 +369,16 @@ $('composer').addEventListener('submit', async (e) => {
 // rather than leaving a dead panel.
 async function boot() {
   try {
-    const [teams, agents] = await Promise.all([api('/api/teams'), api('/api/agents')]);
+    const [teams, rooms, agents] = await Promise.all(
+      [api('/api/teams'), api('/api/rooms'), api('/api/agents')]);
     state.teams = teams;
+    state.allRooms = rooms;
     for (const a of agents) state.agents[a.id] = a;
     await loadQuestions();
-    openRoom('main');
     await pollEvents();
     state.unread = {};
-    renderRooms();
+    const saved = hasChrome ? (await chrome.storage.local.get('team')).team : null;
+    chooseTeam(teams.some((t) => t.id === saved) ? saved : teams[0].id);
     showError('');
     setInterval(pollEvents, 1200);
   } catch (err) {
@@ -293,5 +387,4 @@ async function boot() {
   }
 }
 
-checkListen();
 boot();

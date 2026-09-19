@@ -1,5 +1,4 @@
-"""Fans new events out to connected websocket clients. Carried over from
-agentville. The log in db.py is the source of truth; this is just the live
+"""Fans new events out to connected websocket clients. The log in db.py is the source of truth; this is just the live
 tail. `emit` is the one path every event takes, human or agent."""
 
 import asyncio

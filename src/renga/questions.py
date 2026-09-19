@@ -1,6 +1,6 @@
-"""Questions an agent asks when it hits a roadblock. The same idea as
-agentville's question queue: the agent parks the work, the question shows in
-the chat with its options as buttons, and the answer unparks it."""
+"""Questions an agent asks when it hits a roadblock. The agent parks the
+work, the question shows in the chat with its options as buttons, and the
+answer unparks it."""
 
 import json
 import sqlite3

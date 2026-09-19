@@ -28,14 +28,38 @@ body {
   background: var(--night); color: var(--bone); font: 400 14px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
 }
-button, input { font: inherit; color: inherit; }
+button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 [hidden] { display: none !important; }
 
-.top { display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 10px; }
+.top { display: flex; align-items: center; gap: 10px; padding: 14px 14px 10px; }
 .wordmark { font-weight: 600; font-size: 16px; }
+.top .conn { margin-left: auto; }
+.team-pick {
+  min-width: 0; max-width: 60%; min-height: 32px; padding: 4px 8px; border-radius: var(--radius);
+  border: 1px solid var(--night-edge); background: var(--night-raised); color: var(--bone); font: inherit; font-size: 14px;
+}
+.team-pick:hover { border-color: var(--faint); }
+
+/* reading the tab you're on, for a team with a screen agent */
+.look { display: flex; align-items: center; gap: 10px; margin: 0 14px 10px; }
+.read-btn {
+  min-height: 34px; padding: 0 12px; border: 0; border-radius: var(--radius);
+  background: var(--oxblood); color: var(--bone); font-size: 13px; font-weight: 500; flex: none;
+  transition: background .15s var(--ease);
+}
+.read-btn:hover { background: var(--oxblood-lit); }
+.read-btn:active { background: var(--oxblood-deep); }
+.read-btn:disabled { opacity: .6; cursor: default; }
+.look-note { font-size: 12px; color: var(--faint); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deaf { margin: 0 14px 10px; font-size: 12px; color: var(--faint); }
+
+/* what the screen agent saw */
+.seen .shot { display: block; margin: 4px 0 8px 38px; border: 1px solid var(--night-edge); border-radius: var(--radius); overflow: hidden; }
+.seen .shot:hover { border-color: var(--faint); }
+.seen img { display: block; width: 100%; height: auto; }
 .conn i { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); transition: background .3s var(--ease); }
 .conn.on i { background: var(--brass); box-shadow: 0 0 10px color-mix(in srgb, var(--brass) 50%, transparent); }
 
