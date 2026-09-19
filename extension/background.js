@@ -63,7 +63,11 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ agent_id: agent.id, kind: 'chat', channel: agent.room, text: msg.text }),
-      }).then((r) => reply({ ok: r.ok }));
+      }).then(async (r) => {
+        reply({ ok: r.ok });
+        const said = r.ok ? await r.json() : null;
+        if (said?.look) lookAtCall(sender.tab.id, said.look);
+      });
     }).catch(() => reply({ ok: false }));
     return true; // reply is async
   }
@@ -73,6 +77,43 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   }
   return false;
 });
+
+// ---- looking when someone shows something ------------------------------
+// The server flags a caption line like "as you can see" with `look`: which
+// screen agent should look, and the words that asked. Chrome only lets us
+// capture the tab in front of its window, so it's the call only while the
+// call is on screen. Each reason not to look is said once per session, not
+// on every cue.
+async function lookAtCall(tabId, look) {
+  const say = async (why, text) => {
+    const { told = {} } = await chrome.storage.session.get('told');
+    if (told[why]) return;
+    await chrome.storage.session.set({ told: { ...told, [why]: true } });
+    await fetch(`${SERVER}/api/say`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent_id: look.agent_id, kind: 'chat', channel: look.room, text }),
+    }).catch(() => {});
+  };
+  try {
+    if (!(await chrome.permissions.contains({ origins: ['<all_urls>'] }))) {
+      return say('permission', `someone's showing something ("${look.because}"), but i can't see your tabs yet. `
+        + 'click + then "read this tab" in the panel once, and i\'ll look on my own from then on.');
+    }
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab.active) {
+      return say('hidden', `missed it ("${look.because}"): the call wasn't the tab on screen. `
+        + 'i can only look at the call while it is.');
+    }
+    const image = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 60 });
+    await fetch(`${SERVER}/api/screen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent_id: look.agent_id, url: tab.url, title: tab.title || 'the call',
+                             text: '', image, because: look.because }),
+    });
+  } catch (_) { /* the window is minimised, or the tab went away: nothing to see */ }
+}
 
 chrome.tabs.onRemoved.addListener((tabId) => { setCaptionState(tabId, null); });
 chrome.tabs.onUpdated.addListener((tabId, info) => {

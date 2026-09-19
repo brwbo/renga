@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 
 from . import agents
 from .bus import bus, emit
+from .cues import cue, looks
 from .db import store
 from .questions import QuestionIn
 from .questions import store as questions
@@ -286,10 +287,29 @@ async def say(body: SayIn) -> dict:
     if data and data.get("files"):
         data = {**data, "files": save_files(data["files"])}
     try:
-        return await emit(body.channel, body.kind, from_=body.agent_id, to=body.to,
-                          text=body.text, data=data)
+        event = await emit(body.channel, body.kind, from_=body.agent_id, to=body.to,
+                           text=body.text, data=data)
     except ValueError as err:  # the event failed validation, e.g. an unknown kind
         raise HTTPException(422, str(err)) from err
+    if look := should_look(body.agent_id, body.text):
+        return {**event, "look": look}  # for the extension, not the log
+    return event
+
+
+def should_look(speaker: str, text: str) -> dict | None:
+    """A caption line that says something is being shown ("as you can see")
+    asks the team's screen agent to look. The extension, which posted the
+    line, takes the screenshot and sends it to /api/screen."""
+    who = agents.agent(speaker)
+    words = cue(text)
+    if not who or "captions" not in who.senses or not words:
+        return None
+    team = agents.room(who.room).team
+    rooms = {r.id for r in agents.all_rooms(team)}
+    eyes = next((a for a in agents.all_agents() if a.room in rooms and "screen" in a.senses), None)
+    if not eyes or not looks.due(eyes.room):
+        return None
+    return {"agent_id": eyes.id, "room": eyes.room, "because": words}
 
 
 class ThinkingIn(BaseModel):
@@ -325,6 +345,7 @@ class ScreenIn(BaseModel):
     title: str = Field(default="", max_length=500)
     text: str = Field(default="", max_length=20000)
     image: str | None = Field(default=None, max_length=4_000_000)
+    because: str = Field(default="", max_length=200)  # the words on the call that asked for this look
 
 
 def save_frame(data_url: str) -> str:
@@ -390,8 +411,11 @@ async def screen(body: ScreenIn) -> dict:
     data = {"url": body.url, "title": body.title, "text": body.text[:4000]}
     if body.image:
         data["frame"] = save_frame(body.image)
-    return await emit(who.room, "tool_result", from_=who.id,
-                      text=f"read the screen: {body.title or body.url}", data=data)
+    said = f"read the screen: {body.title or body.url}"
+    if body.because:
+        data["because"] = body.because
+        said = f'looked at the screen, because someone said "{body.because}"'
+    return await emit(who.room, "tool_result", from_=who.id, text=said, data=data)
 
 
 @app.get("/api/questions")
