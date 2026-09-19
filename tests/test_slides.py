@@ -38,15 +38,15 @@ def test_a_slide_is_seen_as_a_slide(client):
 def test_the_visualiser_writes_down_everything_on_a_slide():
     prompts = []
     eyes = Visualiser("main", "visual", model=answering(
-        {"say": "slide 2: q3 revenue, up 18%", "notes": "# q3 revenue\n\n- up 18% on q2\n- emea 41%"}, prompts))
+        {"found": ["q3 revenue up 18% on q2", "- emea is 41% of it", " "]}, prompts))
 
     async def go():
         screen = Screen(title="q3 review", image=base64.b64encode(b"img").decode(), media_type="image/png", slide=2)
         return [line async for line in eyes.run([], [], screen) if line.kind != "thinking"]
 
     [line] = asyncio.run(go())
-    assert line.text == "slide 2: q3 revenue, up 18%\n\n# q3 revenue\n\n- up 18% on q2\n- emea 41%"
-    assert line.data == {"slide": 2, "notes": "# q3 revenue\n\n- up 18% on q2\n- emea 41%", "shown": "slide 2"}
+    assert line.text == "- q3 revenue up 18% on q2\n- emea is 41% of it"
+    assert line.data == {"slide": 2, "notes": line.text, "shown": "slide 2"}
     assert any("this is slide 2" in p for p in prompts)
 
 
@@ -78,11 +78,26 @@ def test_the_pm_has_every_slide_shown(client):
 
 def test_the_visualiser_never_makes_material():
     from renga.design.visualiser import Seen
-    assert set(Seen.model_fields) == {"say", "notes"}  # no files, no diagram: nothing to post but notes
+    assert set(Seen.model_fields) == {"found"}  # no files, no diagram: nothing to post but what it found
     prompts = []
-    eyes = Visualiser("main", "visual", model=answering({"say": "x", "notes": "x"}, prompts))
+    eyes = Visualiser("main", "visual", model=answering({"found": ["x"]}, prompts))
 
     async def go():  # nothing on screen to look at: it doesn't run at all
         return [line async for line in eyes.run(["person: make me a linkedin post"], [], None)]
 
     assert asyncio.run(go()) == [] and prompts == []
+
+
+def test_the_visualiser_says_nothing_when_a_slide_has_nothing_useful():
+    prompts = []
+    eyes = Visualiser("main", "visual", model=answering({"found": []}, prompts))
+    image = base64.b64encode(b"img").decode()
+
+    async def go(screen):
+        return [line async for line in eyes.run([], [], screen) if line.kind != "thinking"]
+
+    assert asyncio.run(go(Screen(image=image, media_type="image/png", slide=3))) == []  # only the call on screen
+    assert prompts  # it did look
+    prompts.clear()  # "as you can see" with nobody presenting: it doesn't look at all
+    assert asyncio.run(go(Screen(image=image, media_type="image/png", because="as you can see"))) == []
+    assert prompts == []

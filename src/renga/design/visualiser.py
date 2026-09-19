@@ -1,10 +1,10 @@
 """The visualiser's brain: the meeting's eyes, nothing more. It wakes when
-the extension has looked at the screen for it (a screenshot and the page
-text: a shared tab, a slide of a presentation, something someone said "as
-you can see" about) and writes down everything on it, for the project
-manager to brief the design team with. It never makes anything itself.
+the extension has looked at the screen for it (a slide while someone
+presents, or a tab you asked it to read) and says, a short line each, only
+what the team could use from it, for the project manager to brief the design
+team with. Nothing useful, no message. It never makes anything itself.
 
-    a look at the screen -> visualiser: Seen -> a line, and the notes under it"""
+    a look at the screen -> visualiser: Seen -> a line per finding, or nothing"""
 
 import base64
 import os
@@ -44,14 +44,13 @@ class Screen(BaseModel):
 
 
 class Seen(BaseModel):
-    say: str = Field(default="", description="one line to the room: what's on screen and its point "
-                                              "(for a slide: its number and title)")
-    notes: str = Field(default="", description="everything on screen, as plain text for a chat "
-                                                "message (lines starting '- ', no # headings, no ** "
-                                                "bold): the title, every line of text, every number "
-                                                "and label exactly as shown, and what each chart, "
-                                                "table or picture shows. only what's there: nothing "
-                                                "made up, nothing drafted")
+    found: list[str] = Field(default_factory=list, description=(
+        "what the slide gives the team to use in what they're making, one short line each, like "
+        "a text message: a fact, a number with what it measures, a name, a claim, a before and "
+        "after, what a chart shows. exact numbers and wording. never the call itself (buttons, "
+        "microphone or camera state, video tiles, names under video, 'you are presenting', the "
+        "meet or browser ui), never what the slide looks like. empty when there's nothing worth "
+        "using"))
 
 
 class Visualiser:
@@ -62,12 +61,13 @@ class Visualiser:
         self.agent = Agent(
             model, output_type=Seen, name="visualiser", defer_model_check=True,
             instructions=f"{role.instructions()}\n\n## you\n\n{voice(role.personality)}\n\n"
-                         "## looking\n\nyou're given a look at the screen: a screenshot and the "
-                         "page's text. write down everything on it in `notes`, with its numbers "
-                         "and labels exactly as shown, and say in `say` what it is in a line. "
-                         "when someone is presenting, this is one of their slides: take in all of "
-                         "it, so the project manager has the whole deck. what was said in the "
-                         "meeting is only there to help you read the screen.\n\n## what you "
+                         "## looking\n\nyou're given a screenshot of the meeting while someone "
+                         "presents. read the slide and pull out only what the team could use in "
+                         "what they're making: facts, numbers, names, claims, comparisons. ignore "
+                         "the call around it: meet's buttons, mic and camera, video tiles, names, "
+                         "toolbars, the browser. a short, exact line per finding. if the slide has "
+                         "nothing useful, or you only see the call, find nothing. what was said "
+                         "in the meeting is only there to help you read the slide.\n\n## what you "
                          "never do\n\nyou don't make anything: no copy, no posts, no drafts, no "
                          "images, no diagrams, no suggestions. even when someone asks for "
                          "material, that's the design team's work, and the project manager hands "
@@ -75,8 +75,8 @@ class Visualiser:
 
     async def run(self, seen: list[str], new: list[str], screen: Screen | None = None) -> AsyncIterator[Line]:
         """Only a look at the screen gives it anything to do."""
-        if not screen:
-            return
+        if not screen or (screen.because and not screen.slide):
+            return  # someone saying "as you can see" isn't a presentation
         look = f"what's on screen now: {screen.title or '(untitled)'} ({screen.url})"
         if screen.slide:
             look += f". someone is presenting: this is slide {screen.slide}"
@@ -88,12 +88,12 @@ class Visualiser:
             parts.append(BinaryContent(base64.b64decode(screen.image), media_type=screen.media_type))
         yield Line(agent_id=self.me, channel=self.room, kind="thinking", text="")
         out = (await self.agent.run(parts)).output
-        if not (out.notes or out.say):
-            return
-        label = f"slide {screen.slide}" if screen.slide else (screen.title or "the screen")
-        # Everything it read goes in the message itself: the screenshot isn't shown in the chat.
-        data = {"notes": out.notes, "shown": label}
+        found = [f.strip().lstrip("-• ").strip() for f in out.found]
+        if not (found := [f for f in found if f]):
+            return  # nothing worth using on it: no message
+        # What it found is the message: the screenshot isn't shown in the chat.
+        notes = "\n".join(f"- {f}" for f in found)
+        data = {"notes": notes, "shown": f"slide {screen.slide}" if screen.slide else (screen.title or "the screen")}
         if screen.slide:
             data["slide"] = screen.slide
-        text = "\n\n".join(t for t in (out.say or label, out.notes) if t)
-        yield Line(agent_id=self.me, channel=self.room, kind="chat", text=text, data=data)
+        yield Line(agent_id=self.me, channel=self.room, kind="chat", text=notes, data=data)

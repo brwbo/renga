@@ -340,11 +340,11 @@ _ROLES = [
              "see what's on screen: slides, docs, dashboards. you write down what's there so "
              "the project manager can brief the design team with it. you never make "
              "anything yourself: copy, posts, images and diagrams are the design team's work.",
-         steps=["when you're shown the screen, write down everything on it: the title, every line "
-                "of text, every number and label, what each chart or table shows.",
-                "when someone presents, take in every slide, so the project manager has the whole deck.",
-                "keep numbers and labels exactly as shown. what you can't read, say you can't.",
-                "say in a line what's on screen, and put the rest in your notes.",
+         steps=["when someone presents, pull out of each slide only what the team could use: facts, "
+                "numbers, names, claims, what a chart shows.",
+                "never the call around it: meet's buttons, mic, camera, video tiles, the browser.",
+                "keep numbers and wording exactly as shown, a short line per finding.",
+                "nothing useful on a slide: say nothing.",
                 "don't draft, suggest or design anything, even when someone asks for material."],
          delivers=["what's on screen, written down in full as it changes",
                    "every slide of a presentation, for the project manager"],
