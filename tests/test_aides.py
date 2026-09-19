@@ -6,7 +6,7 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from renga.design.inside import stream
-from renga.design.jobs import aide, eyes_job, listener_job, notes_job, router_job
+from renga.design.jobs import aide, eyes_job, notes_job, router_job
 from renga.design.sandbox import look, pump
 
 SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>'
@@ -63,7 +63,6 @@ def test_the_note_taker_keeps_the_notes(client):
     log = client.get("/api/events?channel=rowbo-meeting").json()
     again = notes_job(room, agents, log, since=card["id"] - 1)
     assert again.notes == card["data"]["deliverable"] and again.new == []
-    assert listener_job(room, agents, log, since=card["id"] - 1).new == []
     assert router_job(room, rooms, agents, log, since=card["id"] - 1).new == []
 
     # nothing new worth keeping: nothing posted
@@ -95,9 +94,9 @@ def test_the_visualiser_sees_the_screen_and_draws(client):
     assert drawn["from"] == "rowbo-meeting-visualiser" and drawn["text"] == "the sign-off, in order"
     assert client.get(drawn["data"]["files"][0]["url"]).text == SVG
 
-    # its diagram is its own, not the meeting: the listener doesn't hear it
+    # its diagram is its own, not the meeting: the project manager doesn't read it
     log = client.get("/api/events?channel=rowbo-meeting").json()
-    assert listener_job(room, agents, log, since=drawn["id"] - 1).new == []
+    assert router_job(room, rooms, agents, log, since=drawn["id"] - 1).new == []
     assert eyes_job(room, agents, log, since=drawn["id"] - 1).new == []
 
 

@@ -287,33 +287,33 @@ _ROLES = [
 
     # ---- the meeting -------------------------------------------------------
     Role(id="listener", initials="li", personality=_p(2, 1, 1, 2, 0), senses=["captions"],
-         does="hears the meeting through meet's captions and sends the project manager what needs doing",
+         does="the meeting's transcript: posts what's said on the call, and who said it",
          who="you are the room's ears. through the chrome extension you hear the call "
              "as meet captions it, and you post what people say, and who said it, as it "
-             "happens. when the meeting pauses you pick out what needs doing and send it "
-             "on. you don't decide who does it or do it yourself: nothing that needs doing gets lost.",
+             "happens. that's all you do: you don't pick out actions or decide anything. "
+             "the project manager reads what you post.",
          steps=["post each thing said, with who said it.",
                 "keep people's own words. fix only obvious caption errors.",
-                "keep numbers, dates, names and promises exactly as said.",
-                "when the meeting pauses, pick out each new request, decision to act on, promise or problem.",
-                "send each one to the project manager as an action: what, who, by when, and why."],
-         delivers=["a live record of the meeting in the chat", "who said each line",
-                   "each action the meeting needs, sent to the project manager"],
-         hands_to="the project manager gets each action and hands it to the team that should do it. "
-                  "one action per piece of work. small talk and opinions nobody acted on aren't actions."),
+                "keep numbers, dates, names and promises exactly as said."],
+         delivers=["a live record of the meeting in the chat", "who said each line"],
+         hands_to="the project manager reads the transcript and decides what needs doing."),
     Role(id="project-manager", initials="pm", personality=_p(-1, 1, 0, 2, -1),
          does="turns what's said in the meeting into work, and hands it to the right team",
-         who="you connect the meeting to the teams. you read what the listener posts, "
-             "spot what needs doing (a request, a decision, a problem, a promise) and "
-             "hand it to the team that should do it, with enough context that they "
-             "don't need to have been in the meeting. you don't do the work yourself.",
-         steps=["read what was said since you last looked. `action:` lines are what "
-                "the listener heard needs doing; the rest is the meeting, for context.",
+         who="you connect the meeting to the teams, and you're who the person in the "
+             "chat talks to. you read the transcript the listener posts, spot what needs "
+             "doing (a request, a decision, a problem, a promise) and hand it to the team "
+             "that should do it, with enough context that they don't need to have been in "
+             "the meeting. when the person talks to you, you answer them. you don't do the "
+             "work yourself.",
+         steps=["read what was said since you last looked: the listener's lines are the "
+                "call, `person:` lines are the person in the chat talking to you.",
+                "when the person asks or tells you something, answer them.",
                 "pick out what needs doing. skip small talk, opinions nobody acted on and anything already handed off.",
                 "choose the team from what each room is for.",
                 "write each hand-off as a brief: what's needed, why, who asked, any numbers or dates said, what done looks like.",
                 "say in the meeting chat what you sent where, in a line."],
-         delivers=["briefs handed to the right team", "a line in the meeting saying what went where"],
+         delivers=["briefs handed to the right team", "a reply when the person talks to you",
+                   "a line in the meeting saying what went where"],
          hands_to="each brief goes to the lead of a team's room, who splits it across their people. "
                   "one brief per piece of work. when nothing needs doing, hand nothing off."),
     Role(id="note-taker", initials="nt", personality=_p(1, 1, 1, 1, 0),

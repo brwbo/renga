@@ -3,9 +3,9 @@ any team in one go. Starting one makes its rooms and agents; the agents' host
 (design/sandbox.py listen) runs them.
 
 The meeting workflow is the connector between a meeting and the teams: the
-listener hears the call, posts it in the meeting room and sends the project
-manager each action it hears; the project manager hands each one to the
-marketing room, whose lead splits it across the room and has it done. Design
+listener hears the call and posts it in the meeting room as the transcript;
+the project manager reads it, answers you in the chat, and hands what needs
+doing to the marketing room, whose lead splits it across the room and has it done. Design
 is part of marketing: one room does the copy, the visuals and the social."""
 
 from pydantic import BaseModel, Field, model_validator
@@ -56,10 +56,11 @@ def _m(role: str, *traits: str) -> Member:
 
 MEETING = Workflow(
     id="meeting-to-marketing", name="meeting to marketing",
-    does="a listener hears the meeting and sends the actions it needs, a project manager "
-         "turns them into briefs for the marketing room, who do the work",
+    does="a listener posts the meeting's transcript, a project manager reads it, answers you "
+         "and turns what needs doing into briefs for the marketing room, who do the work",
     how=["the listener posts what's said in the meeting, through the chrome extension",
-         "when the meeting pauses, the listener sends the project manager each action it heard",
+         "when the meeting pauses, the project manager reads it and picks out what needs doing",
+         "talk to the project manager in the meeting chat and it answers you",
          "the project manager hands each action to #marketing as a brief",
          "the marketing lead splits it across the room, and the drafts come back to you",
          "alongside, the note-taker keeps the notes, and the visualiser says what's on screen "

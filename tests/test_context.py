@@ -45,9 +45,24 @@ def test_deleting_a_team_deletes_its_context(client):
 
 def test_aurelia_is_built_in_and_reads_the_company_file(client):
     company = (Path(__file__).resolve().parents[1] / "docs/company.md").read_text().strip()
+    # aurelia is a copy of renga: the same rooms and agents, ids prefixed
     rooms = {r["id"]: r for r in client.get("/api/rooms?team=aurelia").json()}
-    assert rooms["aurelia-meeting"]["lead"] == "aurelia-meeting-project-manager"
-    assert rooms["aurelia-marketing"]["lead"] == "aurelia-marketing-marketing-strategist"
+    assert [r["name"] for r in rooms.values()] == ["meeting", "design", "logfire"]
+    assert rooms["aurelia-meeting"]["lead"] == "aurelia-pm"
+    assert rooms["aurelia-design"]["lead"] == "aurelia-design-creative-director"
+    agents = client.get("/api/agents").json()
+    renga = {r["id"] for r in client.get("/api/rooms?team=renga").json()}
+    mine = {a["id"]: a for a in agents if a["room"] in rooms}
+    assert set(mine) == {f"aurelia-{a['id']}" for a in agents if a["room"] in renga}
+    assert mine["aurelia-transcript"]["senses"] == ["captions"] and mine["aurelia-visual"]["senses"] == ["screen"]
+    # its pm hands work to its own #design, and can walk in there; nobody else's
+    task = client.post("/api/delegate", json={"from_agent": "aurelia-pm", "room": "aurelia-design",
+                                              "text": "a launch post"}).json()
+    assert task["to"] == "aurelia-design-creative-director"
+    assert client.post("/api/say", json={"agent_id": "aurelia-pm", "channel": "aurelia-design",
+                                         "text": "hi"}).status_code == 201
+    assert client.post("/api/say", json={"agent_id": "aurelia-pm", "channel": "design",
+                                         "text": "hi"}).status_code == 403
     assert client.get("/api/teams/aurelia/context").json()["text"] == company
     client.put("/api/teams/aurelia/context", json={"text": DOC}).raise_for_status()
     assert client.get("/api/teams/aurelia/context").json()["text"] == DOC  # the ui's wins
@@ -83,23 +98,20 @@ def test_every_crew_member_reads_the_context():
     assert "the team's context" not in Crew(p)._instructions(p.lead)
 
 
-def test_the_listener_and_the_project_manager_read_the_context():
-    from renga.design.listener import Listener
+def test_the_project_manager_reads_the_context():
     from renga.design.router import Router, Target
 
     async def run(lines):
         return [line async for line in lines if line.kind != "thinking"]
 
     seen: list[str] = []
-    listener = Listener("meeting", "ears", "pm", model=heard(seen, {"actions": []}), context=DOC)
-    assert asyncio.run(run(listener.run([], ["priya: we need a hero"]))) == []
     router = Router("meeting", "pm", [Target(room="design", name="design")],
                     model=heard(seen, {"say": None, "handoffs": []}), context=DOC)
     assert asyncio.run(run(router.run([], ["priya: we need a hero"]))) == []
-    assert len(seen) == 2 and all(DOC in s for s in seen)
+    assert len(seen) == 1 and DOC in seen[0]
 
     blank: list[str] = []
-    asyncio.run(run(Listener("meeting", "ears", "pm", model=heard(blank, {"actions": []})).run([], ["hi"])))
+    asyncio.run(run(Router("meeting", "pm", [], model=heard(blank, {"say": None, "handoffs": []})).run([], ["hi"])))
     assert "the team's context" not in blank[0]
 
 

@@ -22,7 +22,6 @@ from opentelemetry.trace import StatusCode
 
 from .crew import Crew, Line
 from .jobs import Job
-from .listener import Listener
 from .notes import NoteTaker
 from .router import Router
 from .visualiser import Visualiser
@@ -73,9 +72,6 @@ async def stream(job: Job, model=None) -> AsyncIterator[str]:
     if job.kind == "crew":
         lines = Crew(job.team, room=room, model=model, ids=job.ids, context=job.context).run(job.brief)
         doing, started = "works on a brief", "started on a brief"
-    elif job.kind == "listener":
-        lines = Listener(room, job.listener, job.pm, model=model, context=job.context).run(job.seen, job.new)
-        doing, started = "listens for actions", "is listening for actions"
     elif job.kind == "notes":
         lines = NoteTaker(room, job.me, model=model, context=job.context).run(job.notes, job.seen, job.new)
         doing, started = "takes the notes", "is taking the notes"

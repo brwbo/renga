@@ -4,7 +4,7 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from renga.design.inside import stream
-from renga.design.jobs import brains, crew_job, listener_job, listener_of, router_job
+from renga.design.jobs import brains, crew_job, router_job
 from renga.design.sandbox import pump
 
 
@@ -81,17 +81,14 @@ def test_only_a_lead_hands_work_to_its_own_team(client):
 
 # ---- the connector, end to end, with a scripted model ----------------------
 def scripted(reply_as: dict):
-    """The listener hears the hero image is needed; the project manager sends
-    it to design; design's creative director gives it to the graphic designer,
+    """The project manager reads that the hero image is needed and sends it
+    to design; design's creative director gives it to the graphic designer,
     then approves it."""
 
     def reply(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         tool = info.output_tools[0]
         fields = tool.parameters_json_schema["properties"]
-        if "actions" in fields:
-            args = {"actions": [{"what": "make a hero image for the launch page", "who": "sam",
-                                 "due": "friday", "why": "priya wants it bold"}]}
-        elif "handoffs" in fields:
+        if "handoffs" in fields:
             args = {"say": "sent the hero image to design", "handoffs": [
                 {"room": "rowbo-marketing", "brief": "a hero image for the launch page, bold, by friday"}]}
         elif "assignments" in fields:
@@ -141,41 +138,29 @@ def test_the_meeting_reaches_the_design_team(client):
     assert calls["calls"] == ["say", "say", "say", "say"]  # routing, plan, work, review
 
 
-def test_the_listener_sends_the_pm_the_actions_it_hears(client):
+def test_the_pm_answers_the_person_in_the_chat(client):
     start_meeting(client)
+    client.post("/api/say", json={"agent_id": "rowbo-meeting-listener", "channel": "rowbo-meeting",
+                                  "text": "sam: we need a hero image"}).raise_for_status()
+    client.post("/api/chat", json={"channel": "rowbo-meeting", "text": "what are you sending design?"}).raise_for_status()
     rooms, agents = client.get("/api/rooms").json(), client.get("/api/agents").json()
     meeting = next(r for r in rooms if r["id"] == "rowbo-meeting")
-    assert listener_of(meeting, agents)["id"] == "rowbo-meeting-listener"
-    assert listener_of(next(r for r in rooms if r["id"] == "rowbo-marketing"), agents) is None
-    for text in ["sam: we need a hero image for the launch page", "priya: bold, and by friday"]:
-        client.post("/api/say", json={"agent_id": "rowbo-meeting-listener", "channel": "rowbo-meeting",
-                                      "text": text}).raise_for_status()
     log = client.get("/api/events?channel=rowbo-meeting").json()
-    job = listener_job(meeting, agents, log, since=log[0]["id"])
-    assert job.listener == "rowbo-meeting-listener" and job.pm == "rowbo-meeting-project-manager"
-    assert job.new == ["listener: sam: we need a hero image for the launch page",
-                       "listener: priya: bold, and by friday"]
-
-    calls = {}
-    run_job(client, job, scripted(calls))
-    action = client.get("/api/events?channel=rowbo-meeting").json()[-1]
-    assert action["kind"] == "task" and action["to"] == "rowbo-meeting-project-manager"
-    assert action["text"] == "action: make a hero image for the launch page (for sam, by friday). priya wants it bold"
-    assert action["data"]["action"]["due"] == "friday"
-
-    # the listener won't send it again, and the project manager acts on it
-    log = client.get("/api/events?channel=rowbo-meeting").json()
-    again = listener_job(meeting, agents, log, since=action["id"])
-    assert again.new == [] and again.seen[-1].endswith("[sent]")
-    routed = router_job(meeting, rooms, agents, log, since=action["id"] - 1)
-    assert routed.new == [f"listener: {action['text']}"]
-    run_job(client, routed, scripted(calls))
-    assert client.get("/api/events?channel=rowbo-marketing").json()[-1]["kind"] == "task"
+    job = router_job(meeting, rooms, agents, log, since=log[0]["id"])
+    # the listener is the transcript; the person reads as `person`, talking to the pm
+    assert job.new == ["listener: sam: we need a hero image", "person: what are you sending design?"]
+    run_job(client, job, scripted({}))
+    said = client.get("/api/events?channel=rowbo-meeting").json()
+    assert said[-2]["from"] == "rowbo-meeting-project-manager" and said[-2]["kind"] == "chat"
 
 
-def test_the_built_in_transcript_is_a_listener(client):
-    rooms, agents = client.get("/api/rooms").json(), client.get("/api/agents").json()
-    assert listener_of(next(r for r in rooms if r["id"] == "main"), agents)["id"] == "transcript"
+def test_the_listener_has_no_brains(client):
+    from renga.design.jobs import Job
+
+    assert "listener" not in Job.model_fields["kind"].annotation.__args__
+    agents = client.get("/api/agents").json()
+    transcript = next(a for a in agents if a["id"] == "transcript")
+    assert transcript["senses"] == ["captions"]  # it still hears the call, through the extension
 
 
 def test_the_built_in_meeting_routes_to_the_design_rooms(client):
@@ -184,5 +169,5 @@ def test_the_built_in_meeting_routes_to_the_design_rooms(client):
     assert brains(meeting, agents) == "router"
     client.post("/api/chat", json={"channel": "main", "text": "we need a launch post"}).raise_for_status()
     job = router_job(meeting, rooms, agents, client.get("/api/events?channel=main").json(), since=0)
-    assert job.pm == "pm" and job.new == ["admin: we need a launch post"]
+    assert job.pm == "pm" and job.new == ["person: we need a launch post"]
     assert {t.room for t in job.targets} == {"design"}  # #logfire has no crew to hand work to

@@ -34,8 +34,9 @@ class Handoff(BaseModel):
 
 
 class Routing(BaseModel):
-    say: str | None = Field(default=None, description="one short line to the meeting about "
-                                                      "what you sent where. empty when nothing")
+    say: str | None = Field(default=None, description="your line in the chat: your answer when "
+                                                      "the person talked to you, and what you "
+                                                      "sent where. empty when there's nothing to say")
     handoffs: list[Handoff] = Field(default_factory=list)
 
 
@@ -52,8 +53,10 @@ class Router:
             model, output_type=Routing, name="project-manager", defer_model_check=True,
             instructions=f"{me.instructions()}\n\n## you\n\n{voice(me.personality)}\n\n"
                          f"## the rooms you can hand work to\n\n{rooms}\n\n"
-                         "## the meeting\n\nyou sit in the meeting room. `say` is one short, "
-                         "plain lowercase line to it. nothing is sent, posted or published "
+                         "## the meeting\n\nyou sit in the meeting room. `person:` lines are the "
+                         "person using renga, talking to you in the chat: always answer them in "
+                         "`say`. the other lines are the call's transcript. `say` is short, "
+                         "plain lowercase, the way a person writes in a chat. nothing is sent, posted or published "
                          "outside renga: the teams make drafts for a person to approve. lines "
                          "you've already handed off are marked; never hand the same thing off twice."
                          + about(context))

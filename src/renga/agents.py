@@ -10,11 +10,12 @@ An agent made from the agent library (design/roles.py) remembers which role
 it came from in `template`. Those are the ones with brains: pydantic ai
 agents hosted in modal sandboxes (design/sandbox.py). The design teams
 (design/presets.py) each get a room here, made from the library. In the
-built-in meeting room the transcript has brains, as a listener that sends the
-pm each action it hears, and so does the pm, as a project manager that
-routes them to #design; the rest don't yet. Workflows
-(workflows.py) set up whole rooms of library agents in any team; aurelia is
-a built-in team set up that way, from the meeting workflow."""
+built-in meeting room the transcript is a listener, with no brains: it posts
+what's said on the call. The pm has brains, as a project manager that reads
+it, answers you and routes work to #design; the rest don't yet. Workflows
+(workflows.py) set up whole rooms of library agents in any team. aurelia is
+a built-in copy of renga's rooms and agents (MIRRORS), reading its own
+company file as its context."""
 
 from functools import cache
 from typing import Literal
@@ -73,9 +74,10 @@ TEAMS: list[Team] = [
          purpose="aurelia bank: turns calls and the github trail into marketing drafts"),
 ]
 
-# Built-in teams whose rooms and agents are a workflow's (workflows.py), set
-# up the same way as starting that workflow from the library.
-FROM_WORKFLOW: dict[str, str] = {"aurelia": "meeting-to-marketing"}
+# Built-in teams that are a copy of another built-in team: the same rooms and
+# agents, each id prefixed with the team's (`aurelia-meeting`, `aurelia-pm`),
+# so they work the same way. Changing renga changes them too.
+MIRRORS: dict[str, str] = {"aurelia": "renga"}
 
 # The context doc a built-in team's agents always read, from the repo. One
 # written from the ui (teams.py) takes its place.
@@ -93,7 +95,7 @@ ROSTER: list[Agent] = [
           role="runs the meeting room, splits the work and delegates it to other rooms"),
     Agent(id="transcript", name="transcript", room="main", initials="tr", senses=["captions"],
           template="listener",
-          role="live speech to text, with speaker labels, and the actions it hears sent to the pm"),
+          role="live speech to text, with speaker labels"),
     Agent(id="visual", name="visual", room="main", initials="vi", senses=["screen"],
           role="reads screen shares, slides and whatever tab you're on"),
     Agent(id="notes", name="notes", room="main", initials="no",
@@ -135,14 +137,19 @@ def _removed() -> dict[str, set[str]]:
 
 
 @cache
-def _from_workflows() -> tuple[list[Room], list[Agent]]:
-    """The rooms and agents of the built-in teams in FROM_WORKFLOW. Built on
-    first use, because workflows.py imports this module."""
-    from .workflows import WORKFLOWS_BY_ID
+def _mirrors() -> tuple[list[Room], list[Agent]]:
+    """The rooms and agents of the built-in teams in MIRRORS: a copy of each
+    one's source team, room and agent ids prefixed with the team's. A room is
+    named after its source's name (`aurelia-meeting`), an agent after its
+    source's id (`aurelia-pm`, `aurelia-design-copywriter`)."""
     rooms, agents = [], []
-    for team_id, workflow in FROM_WORKFLOW.items():
-        r, a = WORKFLOWS_BY_ID[workflow].build(team_id)
-        rooms, agents = rooms + r, agents + a
+    for team_id, source in MIRRORS.items():
+        ids = {r.id: f"{team_id}-{r.name}" for r in ROOMS if r.team == source}
+        moved = [a for a in ROSTER if a.room in ids]
+        who = {a.id: f"{team_id}-{a.id}" for a in moved}
+        rooms += [r.model_copy(update={"id": ids[r.id], "team": team_id, "lead": who.get(r.lead)})
+                  for r in ROOMS if r.id in ids]
+        agents += [a.model_copy(update={"id": who[a.id], "room": ids[a.room]}) for a in moved]
     return rooms, agents
 
 
@@ -162,7 +169,7 @@ def _logfire(teams: list[Team]) -> list[Room]:
 def all_rooms(team: str | None = None) -> list[Room]:
     gone = _removed()["team"]
     from .teams import store
-    rooms = ([r for r in ROOMS + _from_workflows()[0] if r.team not in gone]
+    rooms = ([r for r in ROOMS + _mirrors()[0] if r.team not in gone]
              + [r for _, rs, _ in _made() for r in rs]
              + store.added_rooms())
     taken = {r.id for r in rooms}  # a room someone made called logfire stays theirs
@@ -177,7 +184,7 @@ def all_agents() -> list[Agent]:
     watchers = [Agent(id=r.id, name="logfire", room=r.id, initials="lf",
                       role="reads the logfire traces and posts each run: time, tokens, errors")
                 for r in _logfire(all_teams())]
-    everyone = (ROSTER + _from_workflows()[1] + [a for _, _, agents in _made() for a in agents]
+    everyone = (ROSTER + _mirrors()[1] + [a for _, _, agents in _made() for a in agents]
                 + store.added() + watchers)
     return [a for a in everyone if a.id not in gone and a.room in rooms]
 
@@ -195,9 +202,10 @@ def agent(agent_id: str) -> Agent | None:
 
 
 def can_speak_in(agent_id: str, channel: str) -> bool:
-    """An agent speaks in its own room. The pm can speak in any room of its
-    team, because delegating means walking into the other room."""
+    """An agent speaks in its own room. A project manager can speak in any
+    room of its team, because delegating means walking into the other room."""
     who, where = agent(agent_id), room(channel)
     if not who or not where:
         return False
-    return who.room == channel or (agent_id == "pm" and where.team == room(who.room).team)
+    pm = who.template == "project-manager"
+    return who.room == channel or (pm and where.team == room(who.room).team)

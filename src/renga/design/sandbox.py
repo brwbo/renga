@@ -32,8 +32,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from .crew import DEFAULT_MODEL, Line
-from .jobs import (Job, aide, aides, brains, crew_job, eyes_job, listener_job, listener_of,
-                   logfire_id, notes_job, router_job)
+from .jobs import Job, aide, aides, brains, crew_job, eyes_job, logfire_id, notes_job, router_job
 from .visualiser import Screen
 
 APP = "renga-design"
@@ -163,8 +162,8 @@ def look(client, event: dict) -> Screen:
 
 
 class Meeting:
-    """One meeting room an agent is reading: its listener, its project
-    manager, its note-taker or its visualiser."""
+    """One meeting room an agent is reading: its project manager, its
+    note-taker or its visualiser."""
 
     def __init__(self, since: int):
         self.routed = since  # everything up to here has been read
@@ -172,14 +171,15 @@ class Meeting:
         self.last = 0.0      # when the last one was said
         self.busy = False
         self.look: dict | None = None  # the visualiser's: a look at the screen to go on now
+        self.asked = False  # the project manager's: the person said something, answer now
 
 
 def listen(renga: str, every: float = 2.0) -> None:
     """Watch renga. A brief handed to a crew's lead from another room starts
-    that crew. What's said in a meeting room wakes its listener once the
-    meeting goes quiet or enough has piled up; the actions it sends wake the
-    project manager as soon as it's done. A meeting room with no listener
-    wakes its project manager on what's said. The note-taker and the
+    that crew. What's said in a meeting room (the listener's transcript) wakes
+    its project manager once the meeting goes quiet or enough has piled up;
+    the person talking in the chat wakes it straight away, so it answers
+    them. The listener itself has no brains. The note-taker and the
     visualiser wake on the same pauses, and the visualiser straight away on
     a look at the screen. Nothing is replayed."""
     import httpx
@@ -194,7 +194,7 @@ def listen(renga: str, every: float = 2.0) -> None:
                 done()
         threading.Thread(target=go, daemon=True).start()
 
-    meetings: dict[tuple[str, str], Meeting] = {}  # (room, "listener", "pm", "notes" or "eyes")
+    meetings: dict[tuple[str, str], Meeting] = {}  # (room, "pm", "notes" or "eyes")
 
     def heard(room_id: str, who: str, event_id: int) -> None:
         m = meetings.setdefault((room_id, who), Meeting(event_id - 1))
@@ -212,7 +212,7 @@ def listen(renga: str, every: float = 2.0) -> None:
                 room = by_id.get(e["channel"])
                 if not room:
                     continue
-                kind, ears = brains(room, agents), listener_of(room, agents)
+                kind = brains(room, agents)
                 if (kind == "crew" and e["kind"] == "task" and e["to"] == room["lead"]
                         and (e.get("data") or {}).get("delegated_from")):
                     print(f"#{room['name']} got a brief, its crew is on it")
@@ -224,19 +224,18 @@ def listen(renga: str, every: float = 2.0) -> None:
                         heard(room["id"], "eyes", e["id"])
                         meetings[(room["id"], "eyes")].look = e
                 elif kind == "router" and e["kind"] in ("chat", "answer") and e["from"] != room["lead"]:
-                    heard(room["id"], "listener" if ears else "pm", e["id"])
+                    heard(room["id"], "pm", e["id"])
+                    if e["from"] == "admin":  # the person spoke: the pm answers now
+                        meetings[(room["id"], "pm")].asked = True
                     for who, role in (("notes", "note-taker"), ("eyes", "visualiser")):
                         if aide(room, agents, role):
                             heard(room["id"], who, e["id"])
-                elif ears and e["kind"] == "task" and e["from"] == ears["id"] and e["to"] == room["lead"]:
-                    heard(room["id"], "pm", e["id"])
             for (room_id, who), m in meetings.items():
                 if room_id not in by_id or not m.waiting or m.busy:
                     continue
                 room = by_id[room_id]
-                ears = listener_of(room, agents)
-                if who == "pm" and ears:  # the listener waited for the pause; go once it's done
-                    ready = not meetings.get((room_id, "listener"), Meeting(0)).busy
+                if who == "pm" and m.asked:
+                    ready = True
                 elif who == "eyes" and m.look:
                     ready = True
                 else:
@@ -247,10 +246,7 @@ def listen(renga: str, every: float = 2.0) -> None:
                 if who in ("notes", "eyes") and not aide(room, agents, "note-taker" if who == "notes" else "visualiser"):
                     m.waiting, m.look = 0, None  # the aide has left the room
                     continue
-                if who == "listener" and ears:
-                    job = listener_job(room, agents, log, m.routed)
-                    print(f"#{room['name']}: the listener is listening to {len(job.new)} lines for actions")
-                elif who == "notes":
+                if who == "notes":
                     job = notes_job(room, agents, log, m.routed)
                     print(f"#{room['name']}: the note-taker is reading {len(job.new)} lines")
                 elif who == "eyes":
@@ -261,7 +257,7 @@ def listen(renga: str, every: float = 2.0) -> None:
                     job = router_job(room, rooms, agents, log, m.routed)
                     print(f"#{room['name']}: the project manager is reading {len(job.new)} lines")
                 # the log can run ahead of `since`: whatever this job reads is read
-                m.routed, m.waiting = max([since, *(e["id"] for e in log)]), 0
+                m.routed, m.waiting, m.asked = max([since, *(e["id"] for e in log)]), 0, False
                 if not job.new and not job.screen:
                     continue
                 m.look = None

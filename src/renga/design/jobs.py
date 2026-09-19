@@ -5,9 +5,9 @@ database, so everything the agents need travels in the job.
 A room has brains when its lead came from the library:
 - a design or marketing lead runs a crew (crew.py) on each brief it's handed
 - a project manager runs the router (router.py) on what's said in the meeting
-A listener from the library in a project manager's room has brains too: it
-runs listener.py on what's said and sends the project manager each action.
-So do its aides: a note-taker keeps the notes (notes.py) and a visualiser
+A listener in a project manager's room has no brains: it's the transcript,
+posting what's said on the call, and the project manager reads it. The
+project manager's aides do have brains: a note-taker keeps the notes (notes.py) and a visualiser
 says what's on screen and draws what's described (visualiser.py). Nobody
 reads the aides' posts as the meeting, so they never wake anyone."""
 
@@ -31,7 +31,7 @@ AIDES = ("note-taker", "visualiser")
 
 
 class Job(BaseModel):
-    kind: Literal["crew", "router", "listener", "notes", "eyes"]
+    kind: Literal["crew", "router", "notes", "eyes"]
     room: str
     # a crew
     team: Preset | None = None
@@ -40,9 +40,8 @@ class Job(BaseModel):
     traceparent: str = ""  # the hand-off's trace, so the crew's run joins it
     watch: str = ""        # the team's #logfire room to post each agent run into, if any
     context: str = ""      # the team's context doc, which every agent reads
-    # the router and the listener
+    # the router
     pm: str = ""
-    listener: str = ""
     targets: list[Target] = Field(default_factory=list)
     seen: list[str] = Field(default_factory=list)
     new: list[str] = Field(default_factory=list)
@@ -64,13 +63,6 @@ def brains(room: dict, agents: list[dict]) -> Literal["crew", "router"] | None:
     if template in CREW_ROLES:
         return "crew"
     return None
-
-
-def listener_of(room: dict, agents: list[dict]) -> dict | None:
-    """The room's listener, when it's a project manager's room with one."""
-    if brains(room, agents) != "router":
-        return None
-    return next((a for a in agents if a["room"] == room["id"] and a.get("template") == "listener"), None)
 
 
 def aide(room: dict, agents: list[dict], role: str) -> dict | None:
@@ -101,7 +93,7 @@ def router_job(room: dict, rooms: list[dict], agents: list[dict],
                events: list[dict], since: int) -> Job:
     """The project manager's view: every other room in the team that can take
     work, what was said before `since`, and what was said after it."""
-    names = {a["id"]: a["name"] for a in agents}
+    names = {**{a["id"]: a["name"] for a in agents}, "admin": "person"}
     targets = [Target(room=r["id"], name=r["name"], purpose=r.get("purpose", ""),
                       members=[a["name"] for a in agents if a["room"] == r["id"]])
                for r in rooms
@@ -112,17 +104,6 @@ def router_job(room: dict, rooms: list[dict], agents: list[dict],
     return Job(kind="router", room=room["id"], pm=room["lead"], targets=targets,
                seen=[s for i, _, s in lines if i <= since][-40:],
                new=[s for i, _, s in lines if i > since])
-
-
-def listener_job(room: dict, agents: list[dict], events: list[dict], since: int) -> Job:
-    """The listener's view: what was said before `since`, with the actions it
-    already sent, and what was said after it."""
-    me = listener_of(room, agents)
-    names = {a["id"]: a["name"] for a in agents}
-    lines = _meeting(room, events, names, done=("task", "sent"), skip=aides(room, agents))
-    return Job(kind="listener", room=room["id"], pm=room["lead"], listener=me["id"],
-               seen=[s for i, _, s in lines if i <= since][-60:],
-               new=[s for i, kind, s in lines if i > since and kind != "task"])
 
 
 def notes_job(room: dict, agents: list[dict], events: list[dict], since: int) -> Job:
@@ -155,7 +136,7 @@ def eyes_job(room: dict, agents: list[dict], events: list[dict], since: int,
 def _meeting(room: dict, events: list[dict], names: dict[str, str], done: tuple[str, str],
              you: str | None = None, skip: set[str] = frozenset()) -> list[tuple[int, str, str]]:
     """What's been said in a meeting room, as (event id, kind, `who: text`),
-    with the listener's actions to the project manager in it. `you` is who
+    with anything handed straight to the project manager in it. `you` is who
     reads it; lines of the `done` kind are marked as dealt with. Lines from
     `skip` (the aides) aren't the meeting and are left out."""
     def said(e: dict) -> str:
