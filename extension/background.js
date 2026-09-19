@@ -57,19 +57,32 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     return false;
   }
   if (msg.type === 'caption' && sender.tab) {
-    captionAgent().then((agent) => {
+    (async () => {
+      if (await earsOn()) return reply({ ok: false, reason: 'hearing the audio instead' });
+      const agent = await captionAgent();
       if (!agent) return reply({ ok: false, reason: 'no captions agent in this team' });
-      return fetch(`${SERVER}/api/say`, {
+      const r = await fetch(`${SERVER}/api/say`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ agent_id: agent.id, kind: 'chat', channel: agent.room, text: msg.text }),
-      }).then(async (r) => {
-        reply({ ok: r.ok });
-        const said = r.ok ? await r.json() : null;
-        if (said?.look) lookAtCall(sender.tab.id, said.look);
       });
-    }).catch(() => reply({ ok: false }));
+      reply({ ok: r.ok });
+      const said = r.ok ? await r.json() : null;
+      if (said?.look) lookAtCall(sender.tab.id, said.look);
+    })().catch(() => reply({ ok: false }));
     return true; // reply is async
+  }
+  if (msg.type === 'ears-start') {
+    startEars(msg).then(() => reply({ ok: true }), (err) => reply({ ok: false, reason: err.message }));
+    return true;
+  }
+  if (msg.type === 'ears-stop' || msg.type === 'ears-ended') {
+    stopEars().then(() => reply({ ok: true }), () => reply({ ok: false }));
+    return true;
+  }
+  if (msg.type === 'get-ears') {
+    chrome.storage.session.get('ears').then(({ ears = null }) => reply({ ears }), () => reply({ ears: null }));
+    return true;
   }
   if (msg.type === 'get-call') {
     callStatus().then((status) => reply({ status }), () => reply({ status: null }));
@@ -114,6 +127,40 @@ async function lookAtCall(tabId, look) {
     });
   } catch (_) { /* the window is minimised, or the tab went away: nothing to see */ }
 }
+
+// ---- hearing the call without captions ---------------------------------
+// The panel gets a stream id for the meet tab (it needs your click); the
+// recording runs in an offscreen page (offscreen.js), which posts the audio
+// to renga. While it's on, caption lines are ignored, so the call isn't
+// transcribed twice.
+async function earsOn() {
+  const { ears = null } = await chrome.storage.session.get('ears');
+  return Boolean(ears);
+}
+
+async function startEars({ streamId, tabId, agentId }) {
+  if (!(await chrome.offscreen.hasDocument())) {
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html', reasons: ['USER_MEDIA'],
+      justification: 'records the meet call so the listener can hear it without captions',
+    });
+  }
+  await chrome.runtime.sendMessage({ target: 'offscreen', type: 'ears-start', streamId, agentId });
+  await chrome.storage.session.set({ ears: { tabId, agentId, since: Date.now() } });
+}
+
+async function stopEars() {
+  await chrome.storage.session.remove('ears');
+  if (await chrome.offscreen.hasDocument()) {
+    await chrome.runtime.sendMessage({ target: 'offscreen', type: 'ears-stop' }).catch(() => {});
+    await chrome.offscreen.closeDocument().catch(() => {});
+  }
+}
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  const { ears = null } = await chrome.storage.session.get('ears');
+  if (ears?.tabId === tabId) stopEars();
+});
 
 chrome.tabs.onRemoved.addListener((tabId) => { setCaptionState(tabId, null); });
 chrome.tabs.onUpdated.addListener((tabId, info) => {

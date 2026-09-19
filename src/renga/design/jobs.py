@@ -9,7 +9,10 @@ A listener in a project manager's room has no brains: it's the transcript,
 posting what's said on the call, and the project manager reads it. The
 project manager's aides do have brains: a note-taker keeps the notes (notes.py) and a visualiser
 says what's on screen and draws what's described (visualiser.py). Nobody
-reads the aides' posts as the meeting, so they never wake anyone."""
+reads the aides' posts as the meeting, so they never wake anyone.
+When the call has no captions, the listener gets ears (ears.py): each chunk
+of the call's audio the extension records is a job that turns it into
+transcript lines, posted as the listener."""
 
 from typing import Literal, get_args
 
@@ -31,7 +34,7 @@ AIDES = ("note-taker", "visualiser")
 
 
 class Job(BaseModel):
-    kind: Literal["crew", "router", "notes", "eyes"]
+    kind: Literal["crew", "router", "notes", "eyes", "hear"]
     room: str
     # a crew
     team: Preset | None = None
@@ -49,6 +52,9 @@ class Job(BaseModel):
     me: str = ""
     notes: str = ""               # the note-taker's last notes
     screen: Screen | None = None  # the look that woke the visualiser
+    # the listener's ears
+    audio: str = ""  # base64: a chunk of the call, as the extension recorded it
+    mime: str = ""
 
 
 def _lead(room: dict, agents: list[dict]) -> dict | None:
@@ -148,3 +154,11 @@ def _meeting(room: dict, events: list[dict], names: dict[str, str], done: tuple[
             if e["channel"] == room["id"] and e.get("text") and e["from"] not in skip
             and (e["kind"] in ("chat", "handoff", "answer")
                  or (e["kind"] == "task" and e.get("to") == room["lead"]))]
+
+
+def hear_job(room: dict, listener: str, audio: str, mime: str, events: list[dict]) -> Job:
+    """A chunk of the call for the listener to transcribe, with the last of the
+    transcript so it keeps the same names for the same people."""
+    said = [e["text"] for e in events if e["channel"] == room["id"] and e["from"] == listener
+            and e["kind"] == "chat" and e.get("text")]
+    return Job(kind="hear", room=room["id"], me=listener, audio=audio, mime=mime, seen=said[-12:])

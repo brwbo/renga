@@ -32,7 +32,8 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from .crew import DEFAULT_MODEL, Line
-from .jobs import Job, aide, aides, brains, crew_job, eyes_job, logfire_id, notes_job, router_job
+from .jobs import (Job, aide, aides, brains, crew_job, eyes_job, hear_job, logfire_id, notes_job,
+                   router_job)
 from .visualiser import Screen
 
 APP = "renga-design"
@@ -195,6 +196,27 @@ def listen(renga: str, every: float = 2.0) -> None:
                 done()
         threading.Thread(target=go, daemon=True).start()
 
+    hearing: set[str] = set()  # rooms whose listener is transcribing a chunk of the call
+    deaf = provider(model())[0] != "gemini"  # only gemini hears audio, and only its key is in the sandbox
+
+    def hear(client, rooms: list[dict]) -> None:
+        """The call's audio, when the extension is recording it instead of
+        reading captions: one chunk per room at a time, so the lines stay in order."""
+        by_id = {r["id"]: r for r in rooms}
+        for chunk in client.post("/api/heard/next", json={"busy": sorted(hearing)}).json():
+            room = by_id.get(chunk["room"])
+            if not room:
+                continue
+            if deaf:
+                print(f"#{room['name']}: can't hear the call with {model()}; set RENGA_MODEL to a gemini model")
+                continue
+            log = client.get("/api/events", params={"channel": room["id"]}).json()
+            job = prepare(client, hear_job(room, chunk["agent_id"], chunk["audio"], chunk["mime"], log),
+                          room, rooms)
+            job.watch = ""  # a trace line every few seconds would drown #logfire
+            hearing.add(room["id"])
+            start(job, done=lambda r=room["id"]: hearing.discard(r))
+
     meetings: dict[tuple[str, str], Meeting] = {}  # (room, "pm", "notes" or "eyes")
 
     def heard(room_id: str, who: str, event_id: int) -> None:
@@ -265,6 +287,7 @@ def listen(renga: str, every: float = 2.0) -> None:
                 m.look = None
                 m.busy = True
                 start(prepare(client, job, room, rooms), done=lambda m=m: setattr(m, "busy", False))
+            hear(client, rooms)
             time.sleep(every)
 
 

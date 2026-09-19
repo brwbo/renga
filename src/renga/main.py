@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 from . import agents
 from .bus import bus, emit
 from .cues import cue, looks
+from . import hearing
 from .db import store
 from .questions import QuestionIn
 from .questions import store as questions
@@ -61,6 +62,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="renga", lifespan=lifespan)
+app.include_router(hearing.router)  # the call's audio, when there are no captions
 
 
 class ChatIn(BaseModel):

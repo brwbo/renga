@@ -2,11 +2,13 @@
   "manifest_version": 3,
   "name": "renga",
   "version": "0.2.0",
-  "description": "one renga team's chat beside whatever you're doing. reads meet captions and your tabs, but only for teams that have an agent for it.",
+  "description": "one renga team's chat beside whatever you're doing. hears meet calls (through captions, or the call's audio when you ask) and reads your tabs, but only for teams that have an agent for it.",
   "permissions": [
     "sidePanel",
     "storage",
-    "scripting"
+    "scripting",
+    "tabCapture",
+    "offscreen"
   ],
   "host_permissions": [
     "http://localhost:8020/*",

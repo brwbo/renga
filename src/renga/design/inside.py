@@ -11,6 +11,7 @@ who, how long, the tokens, errors.
 """
 
 import asyncio
+import base64
 import sys
 from collections import defaultdict
 from collections.abc import AsyncIterator
@@ -21,6 +22,7 @@ from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.trace import StatusCode
 
 from .crew import Crew, Line
+from .ears import Ears
 from .jobs import Job
 from .notes import NoteTaker
 from .router import Router
@@ -75,6 +77,10 @@ async def stream(job: Job, model=None) -> AsyncIterator[str]:
     elif job.kind == "notes":
         lines = NoteTaker(room, job.me, model=model, context=job.context).run(job.notes, job.seen, job.new)
         doing, started = "takes the notes", "is taking the notes"
+    elif job.kind == "hear":
+        lines = Ears(room, job.me, model=model, context=job.context).run(
+            base64.b64decode(job.audio), job.mime, job.seen)
+        doing, started = "hears the call", "is hearing the call"
     elif job.kind == "eyes":
         lines = Visualiser(room, job.me, model=model, context=job.context).run(job.seen, job.new, job.screen)
         doing, started = "looks", "is looking"
