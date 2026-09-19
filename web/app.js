@@ -72,10 +72,24 @@ function nameOf(id, fallback) {
 
 function avatar(id, small) {
   const a = state.agents[id];
-  const node = el('span', 'av' + (small ? ' sm' : ''), id === 'admin' ? 'me' : (a?.initials || id.slice(0, 2)));
+  const initials = id === 'admin' ? 'me' : (a?.initials || id.slice(0, 2));
+  const node = el('span', 'av' + (small ? ' sm' : ''));
   if (id === 'admin') node.classList.add('me');
   else if (isLead(id)) node.classList.add('lead');
   node.setAttribute('aria-hidden', 'true');
+
+  if (a?.avatar_url) {
+    const img = el('img', 'av-img');
+    img.src = a.avatar_url;
+    img.alt = '';
+    img.onerror = () => {
+      img.remove();
+      node.textContent = initials;
+    };
+    node.appendChild(img);
+  } else {
+    node.textContent = initials;
+  }
   return node;
 }
 
