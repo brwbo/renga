@@ -21,6 +21,12 @@ from .router import Target
 from .visualiser import Screen
 
 CREW_ROLES = set(get_args(DesignRoleId))
+
+
+def logfire_id(team: str) -> str:
+    """Every team has a #logfire room, and the agent in it shares its id.
+    renga's is plain `logfire`, which it had before every team got one."""
+    return "logfire" if team == "renga" else f"{team}-logfire"
 AIDES = ("note-taker", "visualiser")
 
 
@@ -32,7 +38,7 @@ class Job(BaseModel):
     ids: dict[str, str] = Field(default_factory=dict)  # role -> agent id
     brief: str = ""
     traceparent: str = ""  # the hand-off's trace, so the crew's run joins it
-    watch: bool = False    # post each agent run into a #logfire room, when there is one
+    watch: str = ""        # the team's #logfire room to post each agent run into, if any
     context: str = ""      # the team's context doc, which every agent reads
     # the router and the listener
     pm: str = ""

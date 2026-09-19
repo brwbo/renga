@@ -114,7 +114,7 @@ def test_prepare_fetches_the_rooms_team_context(client):
     client.put(f"/api/teams/{room['team']}/context", json={"text": DOC}).raise_for_status()
     job = prepare(client, crew_job(room, agents, "a post"), room, rooms)
     assert job.context == DOC
-    assert job.watch == any(r["id"] == "logfire" for r in rooms)
+    assert job.watch == "logfire"  # renga's #logfire
     # a room whose team has gone: no context, and no error
     assert prepare(client, job, {**room, "team": "nobody"}, rooms).context == ""
 

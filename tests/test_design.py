@@ -204,7 +204,7 @@ def test_the_logfire_agent_posts_each_run_into_its_room(client):
 
     room = next(r for r in client.get("/api/rooms").json() if r["id"] == "design")
     job = crew_job(room, client.get("/api/agents").json(), "a post", traceparent=parent)
-    job.watch = True
+    job.watch = "logfire"
 
     async def printed():
         return [out async for out in stream(job, model=scripted([]))]

@@ -204,8 +204,9 @@ async def delegate(body: DelegateIn) -> dict:
         task = await emit(room.id, "task", from_=who.id, to=room.lead, text=body.text,
                           data={**(body.data or {}), "delegated_from": home.id,
                                 "traceparent": get_context().get("traceparent", "")})
-        if agents.agent("logfire"):
-            await emit("logfire", "chat", from_="logfire", text=f"{who.name} handed a brief to #{room.name}",
+        watch = agents.logfire_id(home.team)
+        if agents.agent(watch):
+            await emit(watch, "chat", from_=watch, text=f"{who.name} handed a brief to #{room.name}",
                        data={"trace_id": trace_id, "room": room.id})
     return task
 

@@ -78,7 +78,7 @@ def test_create_a_team_with_rooms_and_a_screen_reader(client):
     assert r.status_code == 201
     assert r.json()["team"]["repo"] == "brwbo/umbra"
     rooms = client.get("/api/rooms?team=umbra").json()
-    assert [x["id"] for x in rooms] == ["umbra-general", "umbra-research"]
+    assert [x["id"] for x in rooms] == ["umbra-general", "umbra-research", "umbra-logfire"]
     agents = {a["id"]: a for a in client.get("/api/agents").json()}
     assert agents["umbra-visual"]["senses"] == ["screen"] and agents["umbra-visual"]["room"] == "umbra-general"
     assert "umbra-transcript" not in agents
@@ -180,3 +180,22 @@ def test_an_agent_shows_as_thinking_until_it_speaks_or_its_job_ends(client):
     client.post("/api/thinking", json={"channel": "design", "on": False}).raise_for_status()
     assert client.get("/api/thinking").json() == {}
     assert client.post("/api/thinking", json={"agent_id": copy, "channel": "main"}).status_code == 403
+
+
+def test_every_team_has_its_own_logfire(client):
+    from renga.design.jobs import Job
+    from renga.design.sandbox import prepare
+
+    client.post("/api/teams", json={"name": "umbra", "repo": "brwbo/umbra"}).raise_for_status()
+    rooms = client.get("/api/rooms").json()
+    agents = {a["id"]: a for a in client.get("/api/agents").json()}
+    for t in client.get("/api/teams").json():
+        here = "logfire" if t["id"] == "renga" else f"{t['id']}-logfire"
+        room = next(r for r in rooms if r["id"] == here)
+        assert room["team"] == t["id"] and room["name"] == "logfire" and not room["lead"]
+        assert agents[here]["room"] == here
+        assert client.post("/api/say", json={"agent_id": here, "channel": here,
+                                             "text": "ok"}).status_code == 201
+    # a job in another team watches that team's room, not renga's
+    general = next(r for r in rooms if r["id"] == "rowbo-general")
+    assert prepare(client, Job(kind="crew", room="rowbo-general"), general, rooms).watch == "rowbo-logfire"

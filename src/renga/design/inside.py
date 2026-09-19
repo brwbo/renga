@@ -27,9 +27,6 @@ from .notes import NoteTaker
 from .router import Router
 from .visualiser import Visualiser
 
-ROOM = "logfire"  # the room and the agent that posts the traces
-
-
 class Watch(SpanProcessor):
     """Keeps every agent run that ends, by trace, for stream() to post."""
 
@@ -56,16 +53,17 @@ class Watch(SpanProcessor):
 WATCH = Watch()
 
 
-def _say(text: str, **data) -> str:
-    return Line(agent_id=ROOM, channel=ROOM, kind="chat", text=text, data=data).model_dump_json()
+def _say(where: str, text: str, **data) -> str:
+    """A line from the logfire agent into its team's #logfire room (same id)."""
+    return Line(agent_id=where, channel=where, kind="chat", text=text, data=data).model_dump_json()
 
 
-def _run_line(room: str, trace_id: str, run: dict) -> str:
+def _run_line(where: str, room: str, trace_id: str, run: dict) -> str:
     who = run["role"].replace("-", " ") + ("" if run["step"] == "work" else f" ({run['step']})")
     if run["error"]:
-        return _say(f"#{room}: {who} failed after {run['secs']}s: {run['error']}",
+        return _say(where, f"#{room}: {who} failed after {run['secs']}s: {run['error']}",
                     trace_id=trace_id, room=room, **run)
-    return _say(f"#{room}: {who} took {run['secs']}s, "
+    return _say(where, f"#{room}: {who} took {run['secs']}s, "
                 f"{run['input_tokens']:,} in / {run['output_tokens']:,} out tokens",
                 trace_id=trace_id, room=room, **run)
 
@@ -91,12 +89,12 @@ async def stream(job: Job, model=None) -> AsyncIterator[str]:
             logfire.span("#{room} " + doing, room=room, kind=job.kind) as span:
         trace_id = f"{span.get_span_context().trace_id:032x}"
         if job.watch:
-            yield _say(f"#{room} {started}", trace_id=trace_id, room=room)
+            yield _say(job.watch, f"#{room} {started}", trace_id=trace_id, room=room)
 
         def watched() -> list[str]:
             done = WATCH.drain(trace_id)
             runs.extend(done)
-            return [_run_line(room, trace_id, r) for r in done] if job.watch else []
+            return [_run_line(job.watch, room, trace_id, r) for r in done] if job.watch else []
 
         try:
             async for line in lines:
@@ -107,14 +105,14 @@ async def stream(job: Job, model=None) -> AsyncIterator[str]:
             for out in watched():
                 yield out
             if job.watch:
-                yield _say(f"#{room} stopped: {err}", trace_id=trace_id, room=room, error=str(err))
+                yield _say(job.watch, f"#{room} stopped: {err}", trace_id=trace_id, room=room, error=str(err))
             raise
         for out in watched():
             yield out
         if not job.watch:
             return
         tokens = sum(r["input_tokens"] + r["output_tokens"] for r in runs)
-        yield _say(f"#{room} finished: {len(runs)} agent runs, {tokens:,} tokens",
+        yield _say(job.watch, f"#{room} finished: {len(runs)} agent runs, {tokens:,} tokens",
                    trace_id=trace_id, room=room, runs=len(runs), tokens=tokens)
 
 

@@ -21,6 +21,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from .design.jobs import logfire_id
 from .design.presets import PRESETS_BY_ID, agent_id
 from .design.roles import ROLES
 
@@ -83,8 +84,6 @@ CONTEXT_FILES: dict[str, str] = {"aurelia": "docs/company.md"}
 ROOMS: list[Room] = [
     Room(id="main", team="renga", name="meeting", lead="pm",
          purpose="listens to the meeting, keeps the notes, hands work out"),
-    Room(id="logfire", team="renga", name="logfire",
-         purpose="the traces: every hand-off and agent run, how long it took and what it cost"),
     Room(id="rowbo-general", team="rowbo", name="general",
          purpose="everything about the site, until it needs its own room"),
 ]
@@ -101,12 +100,10 @@ ROSTER: list[Agent] = [
           role="running summary, decisions and action items"),
     Agent(id="actions", name="actions", room="main", initials="ac",
           role="starts on action items and leaves drafts"),
-    Agent(id="logfire", name="logfire", room="logfire", initials="lf",
-          role="reads the logfire traces and posts each run: time, tokens, errors"),
 ]
 
-# renga's rooms: the meeting, one design crew the pm hands material to, and
-# #logfire for the traces. The crew is the brand-campaign line-up; the other presets stay in the
+# renga's rooms: the meeting, and one design crew the pm hands material to.
+# Every team also gets a #logfire room for the traces (_logfire below). The crew is the brand-campaign line-up; the other presets stay in the
 # library as workflows, to set up in a team when one is wanted.
 DESIGN = PRESETS_BY_ID["brand-campaign"]
 ROOMS.insert(1, Room(id="design", team="renga", name="design",
@@ -154,12 +151,22 @@ def all_teams() -> list[Team]:
     return [t for t in TEAMS if t.id not in gone] + [t for t, _, _ in _made()]
 
 
+def _logfire(teams: list[Team]) -> list[Room]:
+    """Every team's #logfire room, where its logfire agent posts the traces:
+    each hand-off and agent run, how long it took and what it cost."""
+    return [Room(id=logfire_id(t.id), team=t.id, name="logfire",
+                 purpose="the traces: every hand-off and agent run, how long it took and what it cost")
+            for t in teams]
+
+
 def all_rooms(team: str | None = None) -> list[Room]:
     gone = _removed()["team"]
     from .teams import store
     rooms = ([r for r in ROOMS + _from_workflows()[0] if r.team not in gone]
              + [r for _, rs, _ in _made() for r in rs]
              + store.added_rooms())
+    taken = {r.id for r in rooms}  # a room someone made called logfire stays theirs
+    rooms += [r for r in _logfire(all_teams()) if r.id not in taken]
     return [r for r in rooms if team is None or r.team == team]
 
 
@@ -167,8 +174,11 @@ def all_agents() -> list[Agent]:
     from .teams import store
     gone = _removed()["agent"]
     rooms = {r.id for r in all_rooms()}
+    watchers = [Agent(id=r.id, name="logfire", room=r.id, initials="lf",
+                      role="reads the logfire traces and posts each run: time, tokens, errors")
+                for r in _logfire(all_teams())]
     everyone = (ROSTER + _from_workflows()[1] + [a for _, _, agents in _made() for a in agents]
-                + store.added())
+                + store.added() + watchers)
     return [a for a in everyone if a.id not in gone and a.room in rooms]
 
 

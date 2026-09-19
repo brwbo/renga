@@ -33,7 +33,7 @@ from pathlib import Path
 
 from .crew import DEFAULT_MODEL, Line
 from .jobs import (Job, aide, aides, brains, crew_job, eyes_job, listener_job, listener_of,
-                   notes_job, router_job)
+                   logfire_id, notes_job, router_job)
 from .visualiser import Screen
 
 APP = "renga-design"
@@ -108,7 +108,8 @@ def pump(out: Iterable[str], post: Callable[[str, dict], object]) -> int:
 def prepare(client, job: Job, room: dict, rooms: list[dict]) -> Job:
     """What the host adds to every job: whether to post the runs into
     #logfire, and the team's context doc."""
-    job.watch = any(r["id"] == "logfire" for r in rooms)
+    here = logfire_id(room["team"])
+    job.watch = here if any(r["id"] == here for r in rooms) else ""
     r = client.get(f"/api/teams/{room['team']}/context")
     job.context = r.json().get("text", "") if r.is_success else ""
     return job
