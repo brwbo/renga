@@ -70,12 +70,34 @@ open http://localhost:8020. to play a short scripted meeting into the room:
 .venv/bin/python scripts/demo.py
 ```
 
+## the chrome extension
+
+a side panel that sits next to a google meet call. it shows the rooms, and
+the transcript agent posts meet's own live captions into the meeting room.
+
+1. start the server (above). the extension talks to `http://localhost:8020`
+2. open `chrome://extensions`, turn on developer mode, click **load unpacked**
+   and pick the `extension/` folder
+3. join a meet, turn on captions (the cc button), click the renga icon in the
+   toolbar
+
+the panel says whether it's hearing the call. chrome decides which side the
+panel opens on (settings, appearance, side panel position); an extension
+can't choose. while working on the panel you can open it in a normal tab at
+http://localhost:8020/extension/panel.html.
+
+reading meet's captions depends on meet's page, which google changes without
+notice. it's the fast first version; capturing the tab's audio replaces it.
+
 ## what's here
 
 - `src/renga/`: the room. an append-only event log (`db.py`), one emit path
   that logs and fans out (`bus.py`), the event shape (`events.py`), the
   teams and who is in them (`agents.py`), the question queue
   (`questions.py`) and the api (`main.py`)
+- `extension/`: the chrome side panel (`panel.*`), the caption reader that
+  runs in the meet tab (`captions.js`) and the worker that carries captions
+  to the server (`background.js`)
 - `web/`: the chat. one room per team, unread counts for the rooms you're
   not in, delegations as cards you can follow into the other room, and
   questions with their options as buttons
@@ -90,7 +112,7 @@ early. the rooms, the chat and delegation work; the agents don't have brains yet
 build order:
 
 1. pydantic ai brains for the agents, running on modal and posting through `/api/say`
-2. side panel showing a live transcript of a meet tab
+2. ~~side panel showing a live transcript of a meet tab~~ first version in `extension/`
 3. notes agent in the group chat
 4. one action worker end to end, with an approve button
 5. the clarification loop on that worker

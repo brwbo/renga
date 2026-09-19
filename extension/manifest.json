@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "renga",
+  "version": "0.1.0",
+  "description": "sits next to a google meet call: live transcript, notes, and the agent teams working on what was said.",
+  "permissions": ["sidePanel", "storage"],
+  "host_permissions": ["http://localhost:8020/*", "https://meet.google.com/*"],
+  "background": { "service_worker": "background.js" },
+  "side_panel": { "default_path": "panel.html" },
+  "action": { "default_title": "open renga" },
+  "content_scripts": [
+    {
+      "matches": ["https://meet.google.com/*"],
+      "js": ["captions.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

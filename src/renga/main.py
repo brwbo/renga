@@ -15,7 +15,9 @@ from .db import store
 from .questions import QuestionIn
 from .questions import store as questions
 
-WEB = Path(__file__).resolve().parents[2] / "web"
+ROOT = Path(__file__).resolve().parents[2]
+WEB = ROOT / "web"
+EXTENSION = ROOT / "extension"
 
 logfire.configure(send_to_logfire="if-token-present", console=False)
 
@@ -147,4 +149,7 @@ async def ws(socket: WebSocket) -> None:
             await bus.disconnect(socket)
 
 
+# The chrome extension's files too, so the side panel can be opened in an
+# ordinary tab while working on it (it works without the chrome apis).
+app.mount("/extension", StaticFiles(directory=EXTENSION), name="extension")
 app.mount("/", StaticFiles(directory=WEB, html=True), name="web")

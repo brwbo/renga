@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>renga</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="panel.css">
+</head>
+<body>
+
+<header class="top">
+  <span class="wordmark">renga</span>
+  <span class="conn" id="conn" title="connecting"><i></i><span class="sr">connecting</span></span>
+</header>
+
+<div id="listen" class="listen" role="status"></div>
+
+<nav id="rooms" class="rooms" aria-label="rooms"></nav>
+
+<div id="error" class="err" role="alert" hidden></div>
+
+<div id="log" class="log" aria-live="polite"></div>
+
+<form id="composer" class="composer">
+  <label for="c-input" class="sr">message</label>
+  <input type="text" id="c-input" placeholder="message #meeting" autocomplete="off">
+  <button type="submit">send</button>
+</form>
+
+<script src="panel.js"></script>
+</body>
+</html>

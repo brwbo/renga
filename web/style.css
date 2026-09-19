@@ -50,7 +50,7 @@ button { cursor: pointer; }
   display: block; width: 8px; height: 8px; border-radius: 50%;
   background: var(--faint); transition: background .3s var(--ease);
 }
-.conn.on i { background: var(--brass); box-shadow: 0 0 10px rgba(201,162,39,.5); }
+.conn.on i { background: var(--brass); box-shadow: 0 0 10px color-mix(in srgb, var(--brass) 50%, transparent); }
 
 .label {
   margin: 14px 8px 4px; font: 500 12px/1 var(--mono); color: var(--faint);
@@ -96,7 +96,7 @@ button { cursor: pointer; }
 
 .err {
   margin: 12px 28px 0; padding: 10px 12px; border-radius: var(--radius);
-  border-left: 2px solid var(--hot); background: #1a0f0d; color: var(--hot); font-size: 14px;
+  border-left: 2px solid var(--hot); background: color-mix(in srgb, var(--hot) 8%, var(--night)); color: var(--hot); font-size: 14px;
 }
 
 .log { flex: 1; overflow-y: auto; padding: 16px 28px 8px; scroll-behavior: smooth; }

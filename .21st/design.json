@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "project": {
+    "name": "renga",
+    "productType": null,
+    "stack": []
+  },
+  "sources": {
+    "tokens": [],
+    "components": [],
+    "assets": [],
+    "instructions": []
+  },
+  "design": {
+    "colorMode": "unknown",
+    "colors": {},
+    "typography": {},
+    "spacing": {},
+    "radius": {},
+    "shadows": {},
+    "motion": {},
+    "density": "unknown"
+  },
+  "components": {
+    "installed": [],
+    "preferredPrimitives": [],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [
+      "everything lowercase",
+      "one warm accent per surface: oxblood for clickable and team leads",
+      "no build step: plain html/css/js",
+      "visible focus ring (brass)",
+      "respect prefers-reduced-motion",
+      "tokens live in web/style.css :root: night #0e1012, raised #16191c, edge #23282c, oxblood #6e2222 (clickable, team leads), brass #c9a227 (small marks, focus), bone #e9e4da (text)",
+      "ibm plex sans + ibm plex mono; 4px radius; avatars are circles with 2 lowercase initials"
+    ],
+    "avoid": [
+      "pixel art / retro styling",
+      "gradients, glass, huge headlines",
+      "pure grey neutrals",
+      "pill buttons (except unread count)",
+      "emoji as icons"
+    ]
+  },
+  "decisions": [],
+  "evidence": [],
+  "generatedAt": "2026-09-19T10:34:43.320Z"
+}
