@@ -114,6 +114,11 @@ def test_a_team_plans_works_reviews_and_revises():
                        ("creative-director", "task")]
     assert who.index(("copywriter", "announce_done")) < who.index(("graphic-designer", "announce_done"))
     assert ("copywriter", "question") in who
+    # everyone speaks up in the chat as they start, not only the lead
+    starts = [line.agent_id.removeprefix("brand-campaign-") for line in lines
+              if line.kind == "chat" and not line.agent_id.endswith("creative-director")]
+    assert {"copywriter", "graphic-designer"} <= set(starts)
+    assert who.index(("copywriter", "chat")) < who.index(("copywriter", "announce_done"))
     assert who[-1] == ("creative-director", "announce_done")
     assert set(lines[-1].data["deliverables"]) == {"copywriter", "graphic-designer"}
     assert all(line.channel == "brand-campaign" for line in lines)

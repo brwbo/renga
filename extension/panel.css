@@ -386,3 +386,19 @@ button { cursor: pointer; }
   .thinking .dots i { animation: none; opacity: .7; }
 }
 body > .thinking { padding: 0 var(--s3) var(--s2); }
+
+/* what an agent made, under its message: svgs as the image, the rest as tiles */
+.work-files { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s2); margin-top: var(--s2); }
+.file {
+  display: flex; flex-direction: column; overflow: hidden; text-decoration: none; color: inherit;
+  border: 1px solid var(--line); border-radius: var(--r1); background: var(--raised);
+  transition: border-color var(--t-fast) var(--ease);
+}
+.file:hover { border-color: var(--ink-3); }
+.file-view { aspect-ratio: 4 / 3; overflow: hidden; display: grid; place-items: center; background: var(--surface); }
+.file-view img { display: block; max-width: 100%; max-height: 100%; }
+.file-view.doc { font-weight: 600; font-size: 15px; color: var(--group); }
+.file-name {
+  padding: var(--s1) var(--s2); border-top: 1px solid var(--line); color: var(--ink-2); font-size: 11.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}

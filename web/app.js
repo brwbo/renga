@@ -352,7 +352,8 @@ function route() {
 }
 
 // ---- messages ---------------------------------------------------------
-const SPOKEN = new Set(['chat', 'question', 'answer', 'handoff', 'task']);
+// A finished piece of work is said in the chat by whoever made it, not a status line.
+const SPOKEN = new Set(['chat', 'question', 'answer', 'handoff', 'task', 'announce_done']);
 
 function questionCard(event) {
   const card = el('div', 'card ask');
@@ -438,6 +439,7 @@ function messageRow(event, continues, prev) {
   } else {
     body.appendChild(el('div', 'tx', event.text || ''));
     if (event.kind === 'question') body.appendChild(questionCard(event));
+    if (event.data?.files?.length || event.data?.deliverable) body.append(...workBits(event)); // work.js
     // Only where the trace changes: the lines under it belong to the same one.
     const trace = event.data?.trace_id;
     if (trace && trace !== prev?.data?.trace_id) body.appendChild(traceLink(trace));

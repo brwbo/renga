@@ -65,19 +65,25 @@ $('context-form').addEventListener('submit', async (e) => {
 // anything else as a file to open. the files are served sandboxed too.
 function workCard(row, event) {
   const wrap = el('div', 'work');
-  wrap.appendChild(row);
-  const files = event.data.files || [];
+  wrap.append(row, ...workBits(event));
+  return wrap;
+}
+
+// The files and the work itself, for under a message or a status line.
+function workBits(event) {
+  const out = [];
+  const files = event.data?.files || [];
   if (files.length) {
     const grid = el('div', 'work-files');
     for (const f of files) grid.appendChild(fileTile(f));
-    wrap.appendChild(grid);
+    out.push(grid);
   }
-  if (event.data.deliverable) {
+  if (event.data?.deliverable) {
     const more = el('details', 'work-text');
     more.append(el('summary', null, 'the work'), el('div', 'tx', event.data.deliverable));
-    wrap.appendChild(more);
+    out.push(more);
   }
-  return wrap;
+  return out;
 }
 
 function fileTile(f) {

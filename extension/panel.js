@@ -307,7 +307,8 @@ function openRoom(id) {
 }
 
 // ---- messages ---------------------------------------------------------
-const SPOKEN = new Set(['chat', 'question', 'answer', 'handoff', 'task']);
+// A finished piece of work is said in the chat by whoever made it, not a status line.
+const SPOKEN = new Set(['chat', 'question', 'answer', 'handoff', 'task', 'announce_done']);
 
 function questionCard(event) {
   const card = el('div', 'card ask');
@@ -390,9 +391,31 @@ function messageRow(event, continues) {
   } else {
     body.appendChild(el('div', 'tx', event.text || ''));
     if (event.kind === 'question') body.appendChild(questionCard(event));
+    if (event.data?.files?.length) body.appendChild(workFiles(event.data.files));
   }
   row.append(avatar(event.from), body);
   return row;
+}
+
+// What an agent made: an svg shows as the image, anything else as a tile to
+// open. The files live on the renga server, so their urls get its origin.
+function workFiles(files) {
+  const grid = el('div', 'work-files');
+  for (const f of files) {
+    const tile = el('a', 'file');
+    tile.href = SERVER + f.url; tile.target = '_blank'; tile.rel = 'noopener noreferrer';
+    tile.title = `open ${f.name}`;
+    const view = el('div', 'file-view' + (f.type === 'image/svg+xml' ? '' : ' doc'));
+    if (f.type === 'image/svg+xml') {
+      const img = el('img'); img.src = SERVER + f.url; img.alt = f.name;
+      view.appendChild(img);
+    } else {
+      view.textContent = `.${f.name.split('.').pop()}`;
+    }
+    tile.append(view, el('div', 'file-name', f.name));
+    grid.appendChild(tile);
+  }
+  return grid;
 }
 
 function render(event, prev) {

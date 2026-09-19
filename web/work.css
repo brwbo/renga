@@ -58,6 +58,9 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .work-text { margin: 0 0 8px 48px; }
+/* under a message, the body is already indented past the avatar */
+.msg .work-files { margin: 8px 0 4px; }
+.msg .work-text { margin: 4px 0 0; }
 .work-text summary { cursor: pointer; color: var(--ink-3); width: max-content; }
 .work-text summary:hover { color: var(--ink); }
 .work-text .tx {

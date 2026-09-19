@@ -38,6 +38,9 @@ class Ask(BaseModel):
 class Assignment(BaseModel):
     role: RoleId
     task: str = Field(description="what this person should make, and what it's for")
+    doing: str = Field(default="", description="what they'll say in the chat as they start, first "
+                                               "person, one short lowercase line, e.g. 'on it: three "
+                                               "hooks first, then the full post'")
     after: list[RoleId] = Field(default_factory=list,
                                 description="roles whose work this needs before it can start")
 
@@ -175,7 +178,8 @@ class Crew:
                 f"the others:\n{others}\n\n{HOUSE_RULES}{about(self.context)}")
         if lead == "plan":
             text += ("\n\n## now: plan\n\nyou lead this room. split the brief into assignments, "
-                     "one per person, only for the people the work needs. use `after` for work "
+                     "one per person, only for the people the work needs. for each, `doing` is "
+                     "the line that person posts as they start, in their own voice. use `after` for work "
                      "that needs someone else's first: words before visuals, research before both. "
                      + ("you don't produce the work yourself." if role == "creative-director"
                         else "you can assign yourself too."))
@@ -207,6 +211,11 @@ class Crew:
     async def _work(self, role: str, prompt: str) -> Work:
         return (await self.members[role].run(prompt)).output
 
+    def _starting(self, role: str, what: str) -> Line:
+        """What a specialist says in the chat as it picks the work up, so the
+        room hears from everyone, not only the lead."""
+        return self._line(role, "chat", what.strip() or "on it")
+
     def _done(self, role: str, work: Work) -> list[Line]:
         data = {"deliverable": work.deliverable}
         if work.files:
@@ -227,6 +236,7 @@ class Crew:
             for a in wave:
                 yield self._line(self.lead, "task", a.task, to=self.id(a.role))
             for a in wave:
+                yield self._starting(a.role, a.doing or f"on it: {a.task}")
                 yield self._line(a.role, "thinking", "")
             prompts = [self._brief(brief, a.task, {f"from the {ROLES[r].name}": done[r]
                                                    for r in a.after})
@@ -247,6 +257,7 @@ class Crew:
             for n in notes:
                 yield self._line(self.lead, "task", n.note, to=self.id(n.role))
             for n in notes:
+                yield self._starting(n.role, "on it, taking another pass")
                 yield self._line(n.role, "thinking", "")
             results = await asyncio.gather(*(
                 self._work(n.role, self._brief(brief, f"the lead's note on your work: {n.note}",
