@@ -275,3 +275,13 @@ def test_the_copywriter_writes_and_the_designers_make_the_image():
     assert [f["name"] for f in done.data["files"]] == ["post.md"]  # its image never lands
     [done] = crew._done("graphic-designer", Work(say="done", deliverable="x", files=files))
     assert [f["name"] for f in done.data["files"]] == ["post.md", "hero.svg"]
+
+
+def test_the_image_makers_are_pushed_past_text_on_a_flat_fill():
+    crew = Crew(PRESETS_BY_ID["brand-campaign"], model=scripted([]))
+    assert "one bold focal graphic" in crew._instructions("social-media-designer")
+    assert "one bold focal graphic" in crew._instructions("graphic-designer")
+    assert "one bold focal graphic" not in crew._instructions("copywriter")
+    lead = crew.lead
+    assert "never ask for plain" in crew._instructions(lead, lead="plan")
+    assert "mostly text on a flat background" in crew._instructions(lead, lead="review")

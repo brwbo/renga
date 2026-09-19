@@ -143,6 +143,31 @@ WORDS = {"copywriter", "ux-writer", "brand-strategist", "marketing-strategist",
          "content-strategist", "seo-specialist", "researcher"}
 VISUAL = (".svg", ".html", ".css")
 
+# Roles that make the images. Left alone they set the copy on a flat fill and
+# call it a post, so they get the craft spelled out.
+IMAGES = {"graphic-designer", "social-media-designer", "editorial-designer", "print-designer",
+          "motion-designer"}
+IMAGE_CRAFT = """\
+
+## making an image
+an image is a graphic first, with words on it, never a slide of text. build a
+real composition in the svg:
+- one bold focal graphic that carries the idea on its own: an illustration,
+  the system drawn as art (nodes, flows, orbits, streams, before and after),
+  numbers drawn as shapes (bars, arcs, rings), not just typed out.
+- depth in layers: a background of gradients (linear and radial, blended so
+  they read like a mesh), glows and soft light (feGaussianBlur filters),
+  patterns, fine grids, rules and marks, then the focal graphic, then type.
+- detail that rewards a second look: small labels, ticks, coordinates, icons
+  drawn from primitives, a texture, a highlight on the one number that matters.
+- type takes a quarter of the canvas or less. a headline and a line or two, no
+  paragraphs. let the graphic do the talking.
+- use the brand (colours, fonts, the mark, the gradients) from the context
+  doc, but push it: the brand is the palette, not a reason to stay plain.
+- dozens of svg elements, not a handful. self-contained: no scripts, no
+  outside images or fonts beyond named families.
+"""
+
 
 def about(context: str) -> str:
     """The team's context (its design.md, brand guide, audience), for an
@@ -186,6 +211,8 @@ class Crew:
                 f"## your team\n\nyou're the {me.name} in #{self.room}, a design team that "
                 f"does {self.preset.does}. the lead is the {ROLES[self.lead].name}. "
                 f"the others:\n{others}\n\n{HOUSE_RULES}{about(self.context)}")
+        if role in IMAGES:
+            text += IMAGE_CRAFT
         if role in WORDS:
             text += ("\n\n## your files\n\nyou write, you don't make visuals. your files are "
                      "markdown: the copy, where each piece goes and how big it should feel. the "
@@ -197,11 +224,15 @@ class Crew:
                      "the line that person posts as they start, in their own voice. use `after` for work "
                      "that needs someone else's first: words before visuals, research before both. "
                      + ("you don't produce the work yourself." if role == "creative-director"
-                        else "you can assign yourself too."))
+                        else "you can assign yourself too.")
+                     + " when there's an image, ask for something striking: a bold focal "
+                     "graphic, layers and depth, the idea drawn, not typed. never ask for plain.")
         elif lead == "review":
             text += ("\n\n## now: review\n\nreview the team's work against the brief, not your "
                      "taste. approve it, or leave a note for each person whose work needs "
-                     "another pass. name the problem and let them solve it.")
+                     "another pass. name the problem and let them solve it. an image that's "
+                     "mostly text on a flat background, or has no focal graphic, goes back "
+                     "for another pass.")
         return text
 
     def _check_plan(self, plan: Plan) -> Plan:
