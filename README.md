@@ -21,7 +21,9 @@ on, and together they finish one piece of work.
   of truth, and the chat is a live view of it.
 - **teams, one per repo, each with its own rooms.** the home page lists the
   teams and the repo each one works on, and **new team** makes one: a name,
-  a repo, its rooms, and which reader agents it starts with. inside a team, every room is a
+  a repo, its rooms, and which reader agents it starts with. teams and agents
+  can be deleted from the ui too (built-in ones are hidden, not cut from the
+  code), and anything they said stays in the log. inside a team, every room is a
   channel with its own agents and a lead. the pm sits in the meeting room and
   doesn't do everything itself: it delegates to another room in its team by
   handing a brief to that room's lead, who splits it across the room. the
@@ -144,6 +146,10 @@ depends on the agents that team has:
 - a team with neither reads nothing.
 
 screenshots are saved as files in `frames/`, never in the event log.
+
+the easy way: on the teams page, click **chrome extension**. it downloads a
+zip already pointed at the server you're on and walks you through loading it.
+or by hand:
 
 1. start the server (above). the extension talks to `http://localhost:8020`
 2. open `chrome://extensions`, turn on developer mode, click **load unpacked**

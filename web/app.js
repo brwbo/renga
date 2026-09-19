@@ -57,8 +57,9 @@ const room = (id) => state.rooms.find((r) => r.id === id);
 const roomsOf = (teamId) => state.rooms.filter((r) => r.team === teamId);
 const isLead = (id) => state.rooms.some((r) => r.lead === id);
 
-function nameOf(id) {
+function nameOf(id, fallback) {
   if (id === 'admin') return 'you';
+  if (fallback && !state.agents[id]) return fallback;
   if (id && id.startsWith('room:')) return `#${room(id.slice(5))?.name || id.slice(5)}`;
   return state.agents[id]?.name || id;
 }
@@ -386,7 +387,7 @@ async function submitAnswer(q, value, box) {
 function statusLine(event) {
   const cls = { announce_done: 'sys done', error: 'sys fail' }[event.kind] || 'sys';
   const row = el('div', cls);
-  const who = el('b', null, nameOf(event.from));
+  const who = el('b', null, nameOf(event.from, event.data?.name));
   row.append(who, document.createTextNode(` ${event.text || event.kind.replace('_', ' ')}`));
   if (!event.data?.frame) return row;
   // What a screen reader saw: the screenshot, linking to the page it came from.

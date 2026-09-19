@@ -139,7 +139,8 @@ async def delete_agent(agent_id: str) -> None:
     if not who:
         raise HTTPException(404, f"no agent called {agent_id!r}")
     teams.delete_agent(agent_id)
-    await emit(who.room, "agent_left", from_=who.id, text=f"was removed from #{agents.room(who.room).name}")
+    await emit(who.room, "agent_left", from_=who.id, text=f"was removed from #{agents.room(who.room).name}",
+               data={"name": who.name})  # it's gone from the roster, so the chat can't look it up
 
 
 class DelegateIn(BaseModel):
