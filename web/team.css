@@ -5,7 +5,7 @@
 .tv-meta { margin: 6px 0 0; font: 400 11.5px var(--ui); color: var(--ink-3); }
 .tv-room[data-group="research"] { --group: var(--research); --group-soft: var(--research-soft); }
 .tv-room[data-group="design"]   { --group: var(--design);   --group-soft: var(--design-soft); }
-.tv-room { border-top: 2px solid var(--group); padding-bottom: 16px; }
+.tv-room { min-width: 0; border-top: 2px solid var(--group); padding-bottom: 16px; }
 .tv-room h2 .hash { font-family: var(--ui); color: var(--ink-3); margin-right: 2px; }
 .tv-room .team-card-head .count {
   min-width: 20px; padding: 0 6px; border-radius: 10px;
@@ -21,3 +21,15 @@
 .tv-open { margin-top: auto; align-self: flex-start; }
 .tv-open { font: 500 11.5px var(--ui); color: var(--group); text-decoration: none; }
 .tv-open:hover { text-decoration: underline; text-underline-offset: 3px; }
+.tv-library { margin-top: 8px; }
+.tv-library > .purpose { margin: 2px 0 16px; font-size: 11.5px; color: var(--ink-2); }
+.tv-set[data-group="research"] { --group: var(--research); --group-soft: var(--research-soft); }
+.tv-set[data-group="design"]   { --group: var(--design);   --group-soft: var(--design-soft); }
+.tv-set { padding: 16px 0; border-top: 1px solid var(--line); }
+.tv-set-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.tv-set-room { font-weight: 600; color: var(--group); text-decoration: none; }
+.tv-set-room:hover { text-decoration: underline; text-underline-offset: 3px; }
+.tv-set-meta { font: 400 11.5px var(--ui); color: var(--ink-3); }
+.tv-set-brief { margin: 6px 0 10px; font-size: 11.5px; color: var(--ink-2); max-width: 72ch; }
+.tv-set-files { margin: 0 0 8px; }
+.tv-set .work-text { margin: 0 0 6px; }

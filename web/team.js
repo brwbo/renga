@@ -14,6 +14,7 @@ function openTeam(id) {
   $('home').hidden = true;
   $('team-view').hidden = false;
   document.title = `${t.name} · renga`;
+  if (outputs.team !== id) { outputs.sets = []; $('tv-outputs').replaceChildren(); }
   renderTeam();
 }
 
@@ -33,6 +34,7 @@ function renderTeam() {
   const grid = $('tv-rooms');
   grid.replaceChildren();
   for (const r of rooms) grid.appendChild(roomCard(r, agents.filter((a) => a.room === r.id)));
+  loadOutputs(t.id);
 }
 
 function roomCard(r, members) {
@@ -69,4 +71,75 @@ function roomCard(r, members) {
   open.href = `#/room/${r.id}`;
   card.appendChild(open);
   return card;
+}
+
+// ---- approved work: what each room's lead signed off, newest first ---------
+const outputs = { team: null, key: null, sets: [] };
+
+// The last sign-off in the team's rooms, so the library refetches only when
+// there's a new one.
+function lastSignOff(teamId) {
+  let last = 0;
+  for (const r of roomsOf(teamId)) {
+    for (const e of state.events[r.id] || []) {
+      if (e.kind === 'announce_done' && e.data?.deliverables && e.id > last) last = e.id;
+    }
+  }
+  return last;
+}
+
+async function loadOutputs(teamId) {
+  const key = lastSignOff(teamId);
+  if (outputs.team === teamId && outputs.key === key) return;
+  outputs.team = teamId; outputs.key = key;
+  try {
+    outputs.sets = await api(`/api/teams/${teamId}/outputs`);
+  } catch (err) {
+    outputs.sets = [];
+    $('tv-outputs').replaceChildren(el('p', 'form-err', err.message));
+    return;
+  }
+  if (state.team === teamId) renderOutputs();
+}
+
+function renderOutputs() {
+  const host = $('tv-outputs');
+  host.replaceChildren();
+  if (!outputs.sets.length) {
+    host.appendChild(el('p', 'm-none', 'nothing signed off yet.'));
+    return;
+  }
+  for (const s of outputs.sets) host.appendChild(outputSet(s));
+}
+
+function outputSet(s) {
+  const box = el('article', 'tv-set');
+  box.dataset.group = groupOf(s.room);
+  const head = el('div', 'tv-set-head');
+  const where = el('a', 'tv-set-room', `#${room(s.room)?.name || s.room}`);
+  where.href = `#/room/${s.room}`;
+  const when = new Date(s.ts).toLocaleDateString([], { day: 'numeric', month: 'short' });
+  head.append(where, el('span', 'tv-set-meta', `signed off by ${nameOf(s.lead)} · ${when} · ${clock(s.ts)}`));
+  box.appendChild(head);
+  if (s.brief) box.appendChild(el('p', 'tv-set-brief', s.brief));
+
+  const grid = el('div', 'work-files tv-set-files');
+  const texts = [];
+  for (const p of s.pieces) {
+    const files = p.files.filter((f) => f.url);
+    for (const f of files) {
+      const tile = fileTile(f); // work.js
+      tile.querySelector('.file-name').textContent = `${f.name} · ${p.by ? nameOf(p.by) : p.role}`;
+      grid.appendChild(tile);
+    }
+    if (!files.length) texts.push(p);
+  }
+  if (grid.children.length) box.appendChild(grid);
+  for (const p of texts) {
+    const more = el('details', 'work-text');
+    more.append(el('summary', null, `${p.by ? nameOf(p.by) : p.role.replace(/-/g, ' ')}: the work`),
+                el('div', 'tx', p.deliverable));
+    box.appendChild(more);
+  }
+  return box;
 }

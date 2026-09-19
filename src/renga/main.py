@@ -29,6 +29,7 @@ from . import agents, deck
 from .bus import bus, emit
 from .cues import cue, looks
 from . import hearing
+from . import outputs
 from .rooms import router as new_rooms
 from .db import store
 from .questions import QuestionIn
@@ -68,6 +69,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="renga", lifespan=lifespan)
 app.include_router(hearing.router)  # the call's audio, when there are no captions
 app.include_router(new_rooms)  # a new room in a team, from the team page
+app.include_router(outputs.router)  # a team's signed-off work, for the team page
 
 
 class ChatIn(BaseModel):

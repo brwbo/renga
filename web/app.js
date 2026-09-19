@@ -8,7 +8,7 @@
 // and the page comes up broken. When the page's version isn't the one these
 // scripts expect, fetch it past the cache and reload, once. Bump both
 // together (the meta in index.html and PAGE here) when the page's markup changes.
-const PAGE = '2';
+const PAGE = '3';
 if (document.querySelector('meta[name=renga-page]')?.content !== PAGE
     && sessionStorage.getItem('renga-reloaded') !== PAGE) {
   sessionStorage.setItem('renga-reloaded', PAGE);
