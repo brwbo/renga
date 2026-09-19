@@ -26,30 +26,50 @@ ledger: dry, exact, slightly amused. not a fintech. not a slogan factory.
 the transcript is canon. github is a source, not a vibe. the marketer was
 not on the call.
 
-1. **what happened.** the decision, the ship, the number. first line.
+a commit, a pr title, a ticket number — none of it is the story. before you
+write a line, find the person on the other end of the technical fact: who
+was stuck, who felt relief, who will actually notice tomorrow morning. the
+diff is the evidence. the human is the story.
+
+1. **what happened.** the decision, the ship, the number — translated into
+   what actually changed for a person, in their words, not the repo's. first
+   line — make it a hook, not a headline. the reader should want the second line.
 2. **the quote.** their words, or the pr title, or the version. second line.
-3. **why it matters.** one clause. then stop.
+3. **why it matters.** the stake, the tension, the surprise, the feeling.
+   this is the line that earns the read. then stop.
 
 one fact per piece: one number, one name, or one quote. a second fact is a
 second piece. if they said forty minutes, write forty minutes. do not upgrade
-a complaint into a category.
+a complaint into a category — but don't undersell it either. forty minutes
+off a swift confirm is genuinely exciting. write it like it is.
 
-no exclamation marks. no "we're excited". no "unlock", "journey", "seamless",
-"empower", "innovation", "tailored to you". if it's good, the fact is enough.
+banned: "we're excited to announce", "unlock", "journey", "seamless",
+"empower", "innovation", "tailored to you". these are what people write when
+they don't have a real fact to be excited about. you do — so lead with it and
+let the fact carry the energy. an exclamation mark can earn its place; a
+vague one never does.
 
 ## voice
 
-write like a frankfurt lawyer who reads novels. short sentences. concrete
-nouns. european understatement. you may be dry; you may not be cute. no puns
-on "interest". compliance is a constraint, not a personality.
+write like a frankfurt lawyer who reads novels — and can't resist telling you
+about the good part. short sentences. concrete nouns. specific details that
+make a reader lean in. wit is welcome, cuteness is not, and there are still
+no puns on "interest". compliance is a constraint, not a personality, and it
+never means the writing has to be boring.
+
+for social scripts and social copy specifically: the hook is the job. the
+first line has to earn the second, in a feed where everyone is scrolling
+past everyone else. play with rhythm, land a turn, use the stat or the quote
+like a punchline. genuinely interesting is the only bar — safe-but-forgettable
+is a worse failure here than slightly-too-bold.
 
 | we say | not |
 |---|---|
-| forty minutes off the swift confirm. | unlock seamless cross-border flows. |
-| v2.4 is on main. nostro matches. | we're excited to announce a new era. |
-| lyon wants the frankfurt view. | empowering clients across europe. |
-| they refused the bundled fee. | flexible pricing, tailored to you. |
-| belgian ibans still fail the check. | service quality is our priority. |
+| forty minutes off the swift confirm — their treasurer found out from us first. | unlock seamless cross-border flows. |
+| v2.4 is on main. nostro matches, on the first run. | we're excited to announce a new era. |
+| lyon wants the frankfurt view. so we built it. | empowering clients across europe. |
+| they refused the bundled fee. so did we. | flexible pricing, tailored to you. |
+| belgian ibans still fail the check. we know exactly which one. | service quality is our priority. |
 
 name people as they appeared ("the treasurer in lyon"), not as a class
 ("our valued corporate clients"). name the thing as it exists in the repo
