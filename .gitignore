@@ -1,0 +1,24 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# chrome extension builds
+extension/dist/
+*.crx
+*.pem
+
+# os / editors
+.DS_Store
+.idea/
+.vscode/
