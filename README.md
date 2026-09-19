@@ -19,8 +19,10 @@ on, and together they finish one piece of work.
 - **one room, one log.** every message is an event with plain english `text`
   for people and a typed `data` payload for machines. the log is the source
   of truth, and the chat is a live view of it.
-- **a pm at the front door.** you talk to one project manager agent. it splits
-  the goal into tasks, brings in the right agents and reports back.
+- **teams, each with its own room.** every team has a lead and a channel. the
+  pm sits in the meeting room and doesn't do everything itself: it delegates
+  to another team by handing a brief to that team's lead, who splits it
+  across the team. the meeting room shows where the work went.
 - **agents read the room.** each agent acts on @mentions, on direct
   assignments and on the kinds of events it cares about. it doesn't reply to
   everything.
@@ -49,8 +51,9 @@ a chrome extension side panel that sits next to a google meet tab:
 - **notes agent**: running summary, decisions and action items
 - **action workers**: start on action items while the meeting is still going
   (follow-up emails, lookups, tasks) and leave them as drafts
-- **marketing workers**: turn the meeting into video scripts, social posts,
-  blog drafts, case studies and ad copy
+- **the design team** (its own room): the pm delegates anything that should
+  become material. the director splits it across copy, video, visuals and
+  brand, who check everything against the brand voice before it goes back
 - **end-of-meeting questions**: anything an agent got stuck on, asked once,
   after the call
 
@@ -67,26 +70,21 @@ open http://localhost:8020. to play a short scripted meeting into the room:
 .venv/bin/python scripts/demo.py
 ```
 
-the sprite sheet (every agent, every outfit, every state) is at
-http://localhost:8020/sprites/.
-
 ## what's here
 
 - `src/renga/`: the room. an append-only event log (`db.py`), one emit path
   that logs and fans out (`bus.py`), the event shape (`events.py`), the
-  roster with each agent's sprite (`agents.py`), the question queue
+  teams and who is in them (`agents.py`), the question queue
   (`questions.py`) and the api (`main.py`)
-- `web/`: the chat. the newest line stands on stage in the console, older
-  lines drop back into the transcript, and questions show their options as
-  buttons
-- `web/sprites/`: the pixel-art generator. 32x48 people on a shared night
-  palette; every job wears its job
+- `web/`: the chat. one room per team, unread counts for the rooms you're
+  not in, delegations as cards you can follow into the other room, and
+  questions with their options as buttons
 
-the chat, the event log and the sprites are carried over from agentville.
+the event log and the chat are carried over from agentville.
 
 ## status
 
-early. the room, the chat and the faces work; the agents don't have brains yet
+early. the rooms, the chat and delegation work; the agents don't have brains yet
 (`scripts/demo.py` speaks for them).
 
 build order:
@@ -96,5 +94,5 @@ build order:
 3. notes agent in the group chat
 4. one action worker end to end, with an approve button
 5. the clarification loop on that worker
-6. marketing workers, starting with video scripts
+6. the design team's brains, starting with video scripts
 7. visual agent

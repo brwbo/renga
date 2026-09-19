@@ -1,61 +1,64 @@
-"""Who is in the room. Each agent is a card: a name, a role, and a sprite spec
-for the pixel-art generator in web/sprites/sprites.js (carried over from
-agentville, where every job wears its job).
+"""Who is in which room. Each team has its own channel and a lead. The pm
+sits in the meeting room and delegates to other teams by handing the work to
+their lead, who splits it across the team.
 
-The seed roster is the meeting copilot crew. The brains (pydantic ai agents
-on modal) are not wired yet; for now a card is a face and a name in the chat."""
-
-from typing import Literal
+The brains (pydantic ai agents on modal) are not wired yet; for now an agent
+is a name, a role and the letters on its avatar."""
 
 from pydantic import BaseModel, Field
 
-Work = Literal["typing", "reading", "mining", "writing", "phone", "inspect", "counting"]
-Outfit = Literal["suit", "hoodie", "apron", "labcoat", "hivis", "visor", "turtle", "coverall"]
-Hat = Literal["none", "beret", "hardhat", "eyeshade", "cap"]
 
-
-class Sprite(BaseModel):
-    skin: int = Field(ge=0, le=4)
-    hair: Literal["black", "brown", "blonde", "ginger", "grey", "auburn"]
-    style: Literal["parted", "buzz", "long", "bob", "curly", "bun", "bald"]
-    accent: Literal["red", "blue", "green", "gold", "purple", "pink", "teal"]
-    eyes: Literal["blue", "brown", "green", "hazel", "grey"]
-    tie: Literal["tie", "bowtie"] = "tie"
-    face: Literal["none", "glasses", "shades", "tache", "beard"] = "none"
-    extra: Literal["none", "headset", "coffee", "briefcase", "lanyard"] = "none"
-    outfit: Outfit = "hoodie"
-    hat: Hat = "none"
-    work: Work = "typing"
+class Team(BaseModel):
+    id: str  # also the channel its chat lives in
+    name: str
+    purpose: str
+    lead: str
 
 
 class Agent(BaseModel):
     id: str
     name: str
     role: str
-    lead: bool = False  # the pm: the one agent a person talks to first
-    sprite: Sprite
+    team: str
+    initials: str = Field(min_length=1, max_length=2)
 
 
-ROSTER: list[Agent] = [
-    Agent(id="pm", name="pm", role="runs the room: splits the work, hands it out, reports back",
-          lead=True,
-          sprite=Sprite(skin=1, hair="black", style="parted", accent="red", eyes="brown",
-                        outfit="suit", work="phone")),
-    Agent(id="transcript", name="transcript", role="live speech to text, with speaker labels",
-          sprite=Sprite(skin=3, hair="black", style="buzz", accent="blue", eyes="brown",
-                        extra="headset", work="typing")),
-    Agent(id="visual", name="visual", role="reads screen shares and slides",
-          sprite=Sprite(skin=0, hair="ginger", style="bob", accent="teal", eyes="green",
-                        face="glasses", outfit="labcoat", work="inspect")),
-    Agent(id="notes", name="notes", role="running summary, decisions and action items",
-          sprite=Sprite(skin=2, hair="brown", style="bun", accent="green", eyes="hazel",
-                        outfit="visor", hat="eyeshade", work="writing")),
-    Agent(id="actions", name="actions", role="starts on action items and leaves drafts",
-          sprite=Sprite(skin=4, hair="black", style="curly", accent="gold", eyes="brown",
-                        extra="coffee", outfit="coverall", hat="cap", work="counting")),
-    Agent(id="marketing", name="marketing", role="video scripts, posts, blogs and ad copy",
-          sprite=Sprite(skin=1, hair="blonde", style="long", accent="pink", eyes="blue",
-                        tie="bowtie", extra="lanyard", outfit="apron", hat="beret", work="reading")),
+TEAMS: list[Team] = [
+    Team(id="main", name="meeting", lead="pm",
+         purpose="listens to the meeting, keeps the notes, hands work out"),
+    Team(id="design", name="design", lead="director",
+         purpose="turns what was said into material: scripts, posts, visuals"),
 ]
 
+ROSTER: list[Agent] = [
+    Agent(id="pm", name="pm", team="main", initials="pm",
+          role="runs the meeting room, splits the work and delegates it to teams"),
+    Agent(id="transcript", name="transcript", team="main", initials="tr",
+          role="live speech to text, with speaker labels"),
+    Agent(id="visual", name="visual", team="main", initials="vi",
+          role="reads screen shares and slides"),
+    Agent(id="notes", name="notes", team="main", initials="no",
+          role="running summary, decisions and action items"),
+    Agent(id="actions", name="actions", team="main", initials="ac",
+          role="starts on action items and leaves drafts"),
+    Agent(id="director", name="director", team="design", initials="di",
+          role="leads design: takes the brief from the pm and splits it across the team"),
+    Agent(id="copy", name="copy", team="design", initials="co",
+          role="headlines, posts, blog drafts and ad copy"),
+    Agent(id="video", name="video", team="design", initials="vd",
+          role="video scripts: hook, scenes, voiceover, call to action"),
+    Agent(id="visuals", name="visuals", team="design", initials="vs",
+          role="thumbnails, slides and social images"),
+    Agent(id="brand", name="brand", team="design", initials="br",
+          role="checks everything against the brand voice before it goes back"),
+]
+
+TEAM_BY_ID = {t.id: t for t in TEAMS}
 BY_ID = {a.id: a for a in ROSTER}
+
+
+def can_speak_in(agent_id: str, channel: str) -> bool:
+    """An agent speaks in its own team's room. The pm can speak anywhere,
+    because delegating means walking into the other team's room."""
+    agent = BY_ID.get(agent_id)
+    return bool(agent) and channel in TEAM_BY_ID and (agent.team == channel or agent_id == "pm")

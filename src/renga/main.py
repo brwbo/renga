@@ -1,5 +1,5 @@
-"""The room's server: the event log over http and a websocket, the roster,
-and the question queue. Serves the chat app in web/ at /."""
+"""The server: the event log over http and a websocket, the teams and their
+rooms, delegation between them, and the question queue. Serves the chat app in web/ at /."""
 
 import contextlib
 from pathlib import Path
@@ -52,20 +52,50 @@ def list_agents() -> list[agents.Agent]:
     return agents.ROSTER
 
 
+@app.get("/api/teams")
+def list_teams() -> list[agents.Team]:
+    return agents.TEAMS
+
+
+class DelegateIn(BaseModel):
+    """The pm handing a piece of work to another team."""
+
+    team: str
+    text: str = Field(min_length=1, max_length=8000)
+    data: dict | None = None
+
+
+@app.post("/api/delegate", status_code=201)
+async def delegate(body: DelegateIn) -> dict:
+    team = agents.TEAM_BY_ID.get(body.team)
+    if not team or team.id == "main":
+        raise HTTPException(404, f"no team called {body.team!r} to delegate to")
+    # One line in the meeting room so you can see where the work went, and
+    # the brief itself in the team's room, addressed to its lead.
+    await emit("main", "handoff", from_="pm", to=f"team:{team.id}",
+               text=f"sent to the {team.name} team: {body.text}", data={"team": team.id})
+    return await emit(team.id, "task", from_="pm", to=team.lead, text=body.text,
+                      data={**(body.data or {}), "delegated_from": "main"})
+
+
 @app.get("/api/events")
-def events(since: int = 0, channel: str = "main") -> list[dict]:
+def events(since: int = 0, channel: str | None = None) -> list[dict]:
     return store.since(since, channel)
 
 
 @app.post("/api/chat", status_code=201)
 async def chat(body: ChatIn) -> dict:
+    if body.channel not in agents.TEAM_BY_ID:
+        raise HTTPException(404, f"no room called {body.channel!r}")
     return await emit(body.channel, "chat", from_="admin", text=body.text.strip())
 
 
 @app.post("/api/say", status_code=201)
 async def say(body: SayIn) -> dict:
     if body.agent_id not in agents.BY_ID:
-        raise HTTPException(404, f"no agent called {body.agent_id!r} in the room")
+        raise HTTPException(404, f"no agent called {body.agent_id!r}")
+    if not agents.can_speak_in(body.agent_id, body.channel):
+        raise HTTPException(403, f"{body.agent_id} isn't in the {body.channel!r} room")
     if body.kind in ("question", "answer"):
         raise HTTPException(422, "questions go through /api/questions")
     try:
@@ -76,14 +106,16 @@ async def say(body: SayIn) -> dict:
 
 
 @app.get("/api/questions")
-def open_questions(channel: str = "main") -> list[dict]:
+def open_questions(channel: str | None = None) -> list[dict]:
     return questions.open(channel)
 
 
 @app.post("/api/questions", status_code=201)
 async def ask(body: QuestionIn) -> dict:
     if body.agent_id not in agents.BY_ID:
-        raise HTTPException(404, f"no agent called {body.agent_id!r} in the room")
+        raise HTTPException(404, f"no agent called {body.agent_id!r}")
+    if not agents.can_speak_in(body.agent_id, body.channel):
+        raise HTTPException(403, f"{body.agent_id} isn't in the {body.channel!r} room")
     q = questions.add(body)
     await emit(body.channel, "question", from_=body.agent_id, text=body.text,
                data={"question_id": q["id"], "options": body.options, "blocking": body.blocking})

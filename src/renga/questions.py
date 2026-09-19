@@ -65,10 +65,14 @@ class QuestionStore:
                                "FROM questions WHERE id = ?", (qid,)).fetchone()
         return self._row(row) if row else None
 
-    def open(self, channel: str) -> list[dict[str, Any]]:
+    def open(self, channel: str | None = None) -> list[dict[str, Any]]:
+        query = "SELECT id, channel, agent_id, answered, answer, data FROM questions WHERE answered = 0"
+        params: list[Any] = []
+        if channel:
+            query += " AND channel = ?"
+            params.append(channel)
         with self._connect() as conn:
-            rows = conn.execute("SELECT id, channel, agent_id, answered, answer, data FROM questions "
-                                "WHERE channel = ? AND answered = 0 ORDER BY id", (channel,)).fetchall()
+            rows = conn.execute(query + " ORDER BY id", params).fetchall()
         return [self._row(r) for r in rows]
 
     def answer(self, qid: int, value: str) -> bool:

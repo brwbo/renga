@@ -4,42 +4,45 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>renga</title>
-<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
-<header id="top">
-  <span class="wordmark">renga</span>
-  <span id="status">
-    <i class="dot off" id="s-dot"></i><span id="s-conn">connecting</span>
-  </span>
-</header>
+<div class="app">
+  <aside class="side" aria-label="rooms">
+    <div class="brand">
+      <span class="wordmark">renga</span>
+      <span class="conn" id="conn" title="connecting"><i></i><span class="sr">connecting</span></span>
+    </div>
 
-<div id="error" class="err hidden"></div>
+    <h2 class="label">rooms</h2>
+    <nav id="rooms" class="rooms"></nav>
 
-<section id="view-chat">
-  <div id="chat-head">
-    <span id="c-title">the room</span>
-    <span class="spacer"></span>
-    <div id="roster"></div>
-  </div>
+    <h2 class="label">in this room</h2>
+    <ul id="members" class="members"></ul>
+  </aside>
 
-  <div id="log"></div>
+  <main class="room">
+    <header class="room-head">
+      <h1 id="room-name">meeting</h1>
+      <p id="room-purpose" class="purpose"></p>
+    </header>
 
-  <!-- the console: the line being said, the answers to it, and your prompt -->
-  <div id="console">
-    <div id="spotlight"></div>
-    <form id="composer">
-      <span class="prompt">&rsaquo;</span>
-      <input type="text" id="c-input" placeholder="say something to the room" autocomplete="off">
+    <div id="error" class="err" role="alert" hidden></div>
+
+    <div id="log" class="log" aria-live="polite"></div>
+
+    <form id="composer" class="composer">
+      <label for="c-input" class="sr">message</label>
+      <input type="text" id="c-input" placeholder="message the room" autocomplete="off">
       <button type="submit">send</button>
     </form>
-  </div>
-</section>
+  </main>
+</div>
 
-<script src="/sprites/palette.js"></script>
-<script src="/sprites/sprites.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
