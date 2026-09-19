@@ -13,16 +13,14 @@ async function renderEars() {
   const who = hasChrome && senser('captions');
   if (!who) { slot.replaceChildren(); return; }
   const { ears } = await chrome.runtime.sendMessage({ type: 'get-ears' }).catch(() => ({ ears: null }));
-  const calls = (await chrome.tabs.query({ url: 'https://meet.google.com/*' })).filter((t) => CALL.test(t.url || ''));
-  if (!ears && !calls.length) { slot.replaceChildren(); return; }
+  // Only shown while the listener is hearing a call, as the way to stop it.
+  if (!ears) { slot.replaceChildren(); return; }
 
-  const bar = el('button', 'rail' + (ears ? '' : ' off'));
+  const bar = el('button', 'rail');
   bar.type = 'button';
-  bar.append(el('span', 'rec'), el('span', 'note', ears
-    ? `${who.name} is hearing the call. click to stop`
-    : `hear the call without captions`));
-  bar.setAttribute('aria-pressed', String(Boolean(ears)));
-  bar.addEventListener('click', () => (ears ? stopEars() : startEars(who)));
+  bar.append(el('span', 'rec'), el('span', 'note', `${who.name} is hearing the call. click to stop`));
+  bar.setAttribute('aria-pressed', 'true');
+  bar.addEventListener('click', stopEars);
   slot.replaceChildren(bar);
 }
 

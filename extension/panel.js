@@ -121,34 +121,31 @@ const mmss = (ms) => {
 function renderRail() {
   const slot = $('rail-slot');
   const { status } = state.call;
-  if (!status) { slot.replaceChildren(); return; }
+  // Only a call being captured gets a rail. No nudge to turn captions on.
+  if (status !== 'on') { slot.replaceChildren(); return; }
 
-  const rail = el('button', 'rail' + (status === 'on' ? '' : ' off'));
+  const rail = el('button', 'rail');
   rail.type = 'button';
   rail.appendChild(el('span', 'rec'));
 
-  if (status === 'on') {
-    const time = el('span', 'elapsed', mmss(Date.now() - state.call.since));
-    time.id = 'elapsed';
-    rail.appendChild(time);
-    const wave = el('span', 'wave');
-    wave.setAttribute('aria-hidden', 'true');
-    for (let i = 0; i < 28; i++) {
-      const bar = el('i');
-      bar.style.animationDelay = `${(i % 7) * 0.12}s`;
-      wave.appendChild(bar);
-    }
-    rail.appendChild(wave);
-    // A count of findings, not of unread messages, so it doesn't reset when
-    // you visit the tab. Nothing emits highlights yet, so it stays hidden.
-    if (state.call.marks) rail.appendChild(el('span', 'marks', String(state.call.marks)));
-    // The waveform is decorative. Screen readers get the record state and
-    // the elapsed time as text instead.
-    rail.setAttribute('aria-label',
-      `recording, ${mmss(Date.now() - state.call.since)} elapsed. open the call.`);
-  } else {
-    rail.appendChild(el('span', 'note', `turn on captions (cc) so ${senser('captions')?.name} can hear the call`));
+  const time = el('span', 'elapsed', mmss(Date.now() - state.call.since));
+  time.id = 'elapsed';
+  rail.appendChild(time);
+  const wave = el('span', 'wave');
+  wave.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 28; i++) {
+    const bar = el('i');
+    bar.style.animationDelay = `${(i % 7) * 0.12}s`;
+    wave.appendChild(bar);
   }
+  rail.appendChild(wave);
+  // A count of findings, not of unread messages, so it doesn't reset when
+  // you visit the tab. Nothing emits highlights yet, so it stays hidden.
+  if (state.call.marks) rail.appendChild(el('span', 'marks', String(state.call.marks)));
+  // The waveform is decorative. Screen readers get the record state and
+  // the elapsed time as text instead.
+  rail.setAttribute('aria-label',
+    `recording, ${mmss(Date.now() - state.call.since)} elapsed. open the call.`);
 
   const home = senser('captions')?.room;
   rail.addEventListener('click', () => {
