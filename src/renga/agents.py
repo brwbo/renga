@@ -18,7 +18,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from .design.presets import PRESETS, agent_id
+from .design.presets import PRESETS_BY_ID, agent_id
 from .design.roles import ROLES
 
 # What an agent takes in from outside the chat, through the chrome extension:
@@ -91,11 +91,14 @@ ROSTER: list[Agent] = [
           role="reads the logfire traces and posts each run: time, tokens, errors"),
 ]
 
-# Every design team is a room the pm can hand material to, led by its lead.
-ROOMS += [Room(id=p.id, team="renga", name=p.id, purpose=p.does, lead=agent_id(p.id, p.lead))
-          for p in PRESETS]
-ROSTER += [from_library(m.role, agent_id(p.id, m.role), p.id, traits=m.traits)
-           for p in PRESETS for m in p.members]
+# renga's rooms: the meeting, one design crew the pm hands material to, and
+# #logfire for the traces. The crew is the brand-campaign line-up; the other
+# presets stay in the library as workflows, to set up in a team when wanted.
+DESIGN = PRESETS_BY_ID["brand-campaign"]
+ROOMS.insert(1, Room(id="design", team="renga", name="design", lead=agent_id("design", DESIGN.lead),
+                     purpose="turns what the meeting decides into material: copy, visuals, social"))
+ROSTER += [from_library(m.role, agent_id("design", m.role), "design", traits=m.traits)
+           for m in DESIGN.members]
 
 # Agents a new team can start with, one per sense.
 STARTERS: dict[Sense, dict] = {

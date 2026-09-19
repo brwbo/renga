@@ -116,23 +116,28 @@ def test_a_team_plans_works_reviews_and_revises():
     assert all(line.channel == "brand-campaign" for line in lines)
 
 
+# renga's #design room is the brand-campaign crew, with its agents named after the room
+DESIGN_IDS = {m.role: f"design-{m.role}" for m in PRESETS_BY_ID["brand-campaign"].members}
+
+
 def test_everything_a_team_says_lands_in_its_room(client):
-    lines = run(Crew(PRESETS_BY_ID["brand-campaign"], model=scripted([])), "a post")
+    lines = run(Crew(PRESETS_BY_ID["brand-campaign"], room="design", model=scripted([]), ids=DESIGN_IDS), "a post")
     for line in lines:
         path, body = line.request()
         assert client.post(path, json=body).status_code == 201, body
-    events = client.get("/api/events?channel=brand-campaign").json()
+    events = client.get("/api/events?channel=design").json()
     assert len(events) == len(lines)
-    assert [q["agent_id"] for q in client.get("/api/questions").json()] == ["brand-campaign-copywriter"]
+    assert [q["agent_id"] for q in client.get("/api/questions").json()] == ["design-copywriter"]
 
 
-def test_every_team_and_member_is_in_renga(client):
+def test_the_design_room_is_the_brand_campaign_crew(client):
     rooms = {r["id"]: r for r in client.get("/api/rooms").json()}
     agents = {a["id"]: a for a in client.get("/api/agents").json()}
-    for p in PRESETS:
-        crew = Crew(p, model=scripted([]))
-        assert rooms[p.id]["lead"] == crew.id(p.lead)
-        assert all(agents[crew.id(m.role)]["room"] == p.id for m in p.members)
+    p = PRESETS_BY_ID["brand-campaign"]
+    crew = Crew(p, room="design", model=scripted([]), ids=DESIGN_IDS)
+    assert rooms["design"]["lead"] == crew.id(p.lead)
+    assert all(agents[crew.id(m.role)]["room"] == "design" for m in p.members)
+    assert not set(PRESETS_BY_ID) & set(rooms)  # the other presets are workflows, not rooms
 
 
 # ---- the sandbox: what runs inside it, and what posts its output ------------
@@ -141,7 +146,7 @@ def test_what_the_sandbox_prints_gets_posted_into_the_room(client):
     from renga.design.jobs import crew_job
     from renga.design.sandbox import pump
 
-    room = next(r for r in client.get("/api/rooms").json() if r["id"] == "brand-campaign")
+    room = next(r for r in client.get("/api/rooms").json() if r["id"] == "design")
     job = crew_job(room, client.get("/api/agents").json(), "a post")
 
     async def printed():
@@ -150,9 +155,9 @@ def test_what_the_sandbox_prints_gets_posted_into_the_room(client):
     out = [o + "\n" for o in asyncio.run(printed())] + ["\n"]
     posted = pump(out, lambda path, body: client.post(path, json=body).raise_for_status())
     assert posted == len(out) - 1
-    room = client.get("/api/events?channel=brand-campaign").json()
-    watched = client.get("/api/events?channel=logfire").json()  # started, finished
-    assert len(room) + len(watched) == posted and len(watched) >= 2
+    # not watched, so nothing goes to #logfire: only the crew's own lines
+    assert len(client.get("/api/events?channel=design").json()) == posted
+    assert client.get("/api/events?channel=logfire").json() == []
     assert len(client.get("/api/questions").json()) == 1
 
 
@@ -184,11 +189,12 @@ def test_the_logfire_agent_posts_each_run_into_its_room(client):
 
     logfire.configure(send_to_logfire=False, console=False, additional_span_processors=[WATCH])
     logfire.instrument_pydantic_ai()
-    task = client.post("/api/delegate", json={"room": "brand-campaign", "text": "a post"}).json()
+    task = client.post("/api/delegate", json={"room": "design", "text": "a post"}).json()
     parent = task["data"]["traceparent"]
 
-    room = next(r for r in client.get("/api/rooms").json() if r["id"] == "brand-campaign")
+    room = next(r for r in client.get("/api/rooms").json() if r["id"] == "design")
     job = crew_job(room, client.get("/api/agents").json(), "a post", traceparent=parent)
+    job.watch = True
 
     async def printed():
         return [out async for out in stream(job, model=scripted([]))]
@@ -196,9 +202,9 @@ def test_the_logfire_agent_posts_each_run_into_its_room(client):
     pump(asyncio.run(printed()), lambda path, body: client.post(path, json=body).raise_for_status())
     lines = client.get("/api/events?channel=logfire").json()
     texts = [e["text"] for e in lines]
-    assert texts[0] == "pm handed a brief to #brand-campaign"
-    assert texts[1] == "#brand-campaign started on a brief"
-    assert any(t.startswith("#brand-campaign: creative director (plan) took") for t in texts)
-    assert texts[-1].startswith("#brand-campaign finished: 5 agent runs")
+    assert texts[0] == "pm handed a brief to #design"
+    assert texts[1] == "#design started on a brief"
+    assert any(t.startswith("#design: creative director (plan) took") for t in texts)
+    assert texts[-1].startswith("#design finished: 5 agent runs")
     # the hand-off and the team's run are one trace
     assert {e["data"]["trace_id"] for e in lines} == {parent.split("-")[1]}

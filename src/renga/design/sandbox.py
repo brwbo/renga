@@ -129,7 +129,9 @@ def run(renga: str, room_id: str, brief: str) -> None:
     if not room or brains(room, agents) != "crew":
         crews = sorted(r["id"] for r in rooms if brains(r, agents) == "crew")
         raise SystemExit(f"{room_id!r} isn't a room with a crew. try one of: {', '.join(crews)}")
-    run_job(renga, crew_job(room, agents, brief))
+    job = crew_job(room, agents, brief)
+    job.watch = any(r["id"] == "logfire" for r in rooms)
+    run_job(renga, job)
 
 
 class Meeting:
@@ -174,8 +176,9 @@ def listen(renga: str, every: float = 2.0) -> None:
                 if (kind == "crew" and e["kind"] == "task" and e["to"] == room["lead"]
                         and (e.get("data") or {}).get("delegated_from")):
                     print(f"#{room['name']} got a brief, its crew is on it")
-                    start(crew_job(room, agents, e["text"],
-                                   (e.get("data") or {}).get("traceparent", "")))
+                    job = crew_job(room, agents, e["text"], (e.get("data") or {}).get("traceparent", ""))
+                    job.watch = "logfire" in by_id
+                    start(job)
                 elif kind == "router" and e["kind"] in ("chat", "answer") and e["from"] != room["lead"]:
                     m = meetings.setdefault(room["id"], Meeting(e["id"] - 1))
                     m.waiting, m.last = m.waiting + 1, time.monotonic()
@@ -184,6 +187,7 @@ def listen(renga: str, every: float = 2.0) -> None:
                 if m.waiting and not m.busy and (quiet or m.waiting >= BACKLOG) and room_id in by_id:
                     log = client.get("/api/events", params={"channel": room_id}).json()
                     job = router_job(by_id[room_id], rooms, agents, log, m.routed)
+                    job.watch = "logfire" in by_id
                     m.routed, m.waiting, m.busy = since, 0, True
                     print(f"#{by_id[room_id]['name']}: the project manager is reading {len(job.new)} lines")
                     start(job, done=lambda m=m: setattr(m, "busy", False))

@@ -14,7 +14,7 @@ import time
 import httpx
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8020"
-BC = "brand-campaign"
+BC = "design"
 CD = f"{BC}-creative-director"
 
 
@@ -39,7 +39,7 @@ SCRIPT = [
     say("transcript", "priya: \"we cut onboarding from a week to a day.\""),
     say("pm", "draft sam's follow-up to priya, attach the deck.", kind="handoff", to="actions"),
     say("actions", "drafting the follow-up email", kind="announce_start"),
-    delegate("brand-campaign", "priya's line \"we cut onboarding from a week to a day\" is a strong hook. "
+    delegate(BC, "priya's line \"we cut onboarding from a week to a day\" is a strong hook. "
                        "make a 30-second video and a linkedin post around it, using the 18% from slide 4."),
     say(CD, "on it. copy writes the script and the post first, then graphics takes the thumbnail "
             "and social cuts it for linkedin.", channel=BC),

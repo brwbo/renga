@@ -25,6 +25,7 @@ class Job(BaseModel):
     ids: dict[str, str] = Field(default_factory=dict)  # role -> agent id
     brief: str = ""
     traceparent: str = ""  # the hand-off's trace, so the crew's run joins it
+    watch: bool = False    # post each agent run into a #logfire room, when there is one
     # the router
     pm: str = ""
     targets: list[Target] = Field(default_factory=list)

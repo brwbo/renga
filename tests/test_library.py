@@ -75,9 +75,9 @@ def test_only_a_lead_hands_work_to_its_own_team(client):
     listener = "rowbo-meeting-listener"
     assert client.post("/api/delegate", json={"from_agent": listener, "room": "rowbo-design",
                                               "text": "x"}).status_code == 403
-    assert client.post("/api/delegate", json={"from_agent": pm, "room": "brand-campaign",
+    assert client.post("/api/delegate", json={"from_agent": pm, "room": "design",
                                               "text": "x"}).status_code == 404
-    assert client.post("/api/delegate", json={"room": "brand-campaign", "text": "x"}).status_code == 201
+    assert client.post("/api/delegate", json={"room": "design", "text": "x"}).status_code == 201
 
 
 # ---- the connector, end to end, with a scripted model ----------------------
@@ -145,4 +145,4 @@ def test_the_built_in_meeting_routes_to_the_design_rooms(client):
     client.post("/api/chat", json={"channel": "main", "text": "we need a launch post"}).raise_for_status()
     job = router_job(meeting, rooms, agents, client.get("/api/events?channel=main").json(), since=0)
     assert job.pm == "pm" and job.new == ["admin: we need a launch post"]
-    assert {t.room for t in job.targets} >= {"brand-campaign", "content-machine"}
+    assert {t.room for t in job.targets} == {"design"}  # #logfire has no crew to hand work to

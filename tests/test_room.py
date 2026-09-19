@@ -4,9 +4,8 @@ def test_every_team_has_a_repo_and_rooms(client):
     assert all("/" in t["repo"] for t in teams)
     for t in teams:
         assert any(r["team"] == t["id"] for r in rooms)
-    assert {r["id"] for r in client.get("/api/rooms?team=renga").json()} == {
-        "main", "logfire", "full-studio", "landing-page-sprint", "brand-campaign", "content-machine",
-        "product-team", "full-stack-design", "marketing-blitz"}
+    renga = [r["name"] for r in client.get("/api/rooms?team=renga").json()]
+    assert renga == ["meeting", "design", "logfire"]
 
 
 def test_every_lead_sits_in_their_room(client):
@@ -17,11 +16,11 @@ def test_every_lead_sits_in_their_room(client):
 
 
 def test_pm_delegates_to_the_design_lead(client):
-    task = client.post("/api/delegate", json={"room": "brand-campaign", "text": "make a video"}).json()
-    assert task["channel"] == "brand-campaign" and task["kind"] == "task"
-    assert task["to"] == "brand-campaign-creative-director"
+    task = client.post("/api/delegate", json={"room": "design", "text": "make a video"}).json()
+    assert task["channel"] == "design" and task["kind"] == "task"
+    assert task["to"] == "design-creative-director"
     main = client.get("/api/events?channel=main").json()
-    assert main[-1]["kind"] == "handoff" and main[-1]["to"] == "room:brand-campaign"
+    assert main[-1]["kind"] == "handoff" and main[-1]["to"] == "room:design"
 
 
 def test_cannot_delegate_outside_the_team(client):
@@ -31,11 +30,11 @@ def test_cannot_delegate_outside_the_team(client):
 
 
 def test_agents_stay_in_their_own_room(client):
-    copy = "brand-campaign-copywriter"
+    copy = "design-copywriter"
     assert client.post("/api/say", json={"agent_id": copy, "text": "hi", "channel": "main"}).status_code == 403
-    assert client.post("/api/say", json={"agent_id": copy, "text": "hi", "channel": "brand-campaign"}).status_code == 201
-    assert client.post("/api/say", json={"agent_id": copy, "text": "hi", "channel": "product-team"}).status_code == 403
-    assert client.post("/api/say", json={"agent_id": "pm", "text": "hi", "channel": "brand-campaign"}).status_code == 201
+    assert client.post("/api/say", json={"agent_id": copy, "text": "hi", "channel": "design"}).status_code == 201
+    assert client.post("/api/say", json={"agent_id": copy, "text": "hi", "channel": "rowbo-general"}).status_code == 403
+    assert client.post("/api/say", json={"agent_id": "pm", "text": "hi", "channel": "design"}).status_code == 201
     assert client.post("/api/say", json={"agent_id": "pm", "text": "hi", "channel": "rowbo-general"}).status_code == 403
 
 

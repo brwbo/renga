@@ -3,8 +3,9 @@ json on stdin, runs it, and prints each Line as one line of json on stdout
 for the host (sandbox.py) to post into renga.
 
 The whole job is one logfire span, a child of the hand-off when the job
-carries its traceparent. The logfire agent reads the spans as they end and
-posts each agent run into #logfire: who, how long, the tokens, errors.
+carries its traceparent. With `watch` set (there's a #logfire room), the
+logfire agent reads the spans as they end and posts each agent run into it:
+who, how long, the tokens, errors.
 
     python -m renga.design.inside < job.json
 """
@@ -77,12 +78,13 @@ async def stream(job: Job, model=None) -> AsyncIterator[str]:
     with attach_context({"traceparent": job.traceparent} if job.traceparent else {}), \
             logfire.span("#{room} " + doing, room=room, kind=job.kind) as span:
         trace_id = f"{span.get_span_context().trace_id:032x}"
-        yield _say(f"#{room} {started}", trace_id=trace_id, room=room)
+        if job.watch:
+            yield _say(f"#{room} {started}", trace_id=trace_id, room=room)
 
         def watched() -> list[str]:
             done = WATCH.drain(trace_id)
             runs.extend(done)
-            return [_run_line(room, trace_id, r) for r in done]
+            return [_run_line(room, trace_id, r) for r in done] if job.watch else []
 
         try:
             async for line in lines:
@@ -92,10 +94,13 @@ async def stream(job: Job, model=None) -> AsyncIterator[str]:
         except Exception as err:
             for out in watched():
                 yield out
-            yield _say(f"#{room} stopped: {err}", trace_id=trace_id, room=room, error=str(err))
+            if job.watch:
+                yield _say(f"#{room} stopped: {err}", trace_id=trace_id, room=room, error=str(err))
             raise
         for out in watched():
             yield out
+        if not job.watch:
+            return
         tokens = sum(r["input_tokens"] + r["output_tokens"] for r in runs)
         yield _say(f"#{room} finished: {len(runs)} agent runs, {tokens:,} tokens",
                    trace_id=trace_id, room=room, runs=len(runs), tokens=tokens)
