@@ -13,8 +13,10 @@ agents hosted in modal sandboxes (design/sandbox.py). The design teams
 built-in meeting room the transcript has brains, as a listener that sends the
 pm each action it hears, and so does the pm, as a project manager that
 routes them to #design; the rest don't yet. Workflows
-(workflows.py) set up whole rooms of library agents in any team."""
+(workflows.py) set up whole rooms of library agents in any team; aurelia is
+a built-in team set up that way, from the meeting workflow."""
 
+from functools import cache
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -66,7 +68,17 @@ TEAMS: list[Team] = [
          purpose="the meeting copilot: listens, takes notes, turns talk into material"),
     Team(id="rowbo", name="rowbo.ai", repo="brwbo/rowbo.ai",
          purpose="the rowbo.ai site"),
+    Team(id="aurelia", name="aurelia", repo="brwbo/renga",
+         purpose="aurelia bank: turns calls and the github trail into marketing drafts"),
 ]
+
+# Built-in teams whose rooms and agents are a workflow's (workflows.py), set
+# up the same way as starting that workflow from the library.
+FROM_WORKFLOW: dict[str, str] = {"aurelia": "meeting-to-marketing"}
+
+# The context doc a built-in team's agents always read, from the repo. One
+# written from the ui (teams.py) takes its place.
+CONTEXT_FILES: dict[str, str] = {"aurelia": "docs/company.md"}
 
 ROOMS: list[Room] = [
     Room(id="main", team="renga", name="meeting", lead="pm",
@@ -125,6 +137,18 @@ def _removed() -> dict[str, set[str]]:
     return store.removed()
 
 
+@cache
+def _from_workflows() -> tuple[list[Room], list[Agent]]:
+    """The rooms and agents of the built-in teams in FROM_WORKFLOW. Built on
+    first use, because workflows.py imports this module."""
+    from .workflows import WORKFLOWS_BY_ID
+    rooms, agents = [], []
+    for team_id, workflow in FROM_WORKFLOW.items():
+        r, a = WORKFLOWS_BY_ID[workflow].build(team_id)
+        rooms, agents = rooms + r, agents + a
+    return rooms, agents
+
+
 def all_teams() -> list[Team]:
     gone = _removed()["team"]
     return [t for t in TEAMS if t.id not in gone] + [t for t, _, _ in _made()]
@@ -133,7 +157,8 @@ def all_teams() -> list[Team]:
 def all_rooms(team: str | None = None) -> list[Room]:
     gone = _removed()["team"]
     from .teams import store
-    rooms = ([r for r in ROOMS if r.team not in gone] + [r for _, rs, _ in _made() for r in rs]
+    rooms = ([r for r in ROOMS + _from_workflows()[0] if r.team not in gone]
+             + [r for _, rs, _ in _made() for r in rs]
              + store.added_rooms())
     return [r for r in rooms if team is None or r.team == team]
 
@@ -142,7 +167,8 @@ def all_agents() -> list[Agent]:
     from .teams import store
     gone = _removed()["agent"]
     rooms = {r.id for r in all_rooms()}
-    everyone = ROSTER + [a for _, _, agents in _made() for a in agents] + store.added()
+    everyone = (ROSTER + _from_workflows()[1] + [a for _, _, agents in _made() for a in agents]
+                + store.added())
     return [a for a in everyone if a.id not in gone and a.room in rooms]
 
 

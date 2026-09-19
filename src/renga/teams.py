@@ -4,7 +4,9 @@ started with, so a team is written in one go and never half made. The
 built-in teams in agents.py are not stored here, but agents and rooms added
 to them are. A workflow's rooms and their agents are also written in one go.
 Every team, built in or not, can have a context: a markdown doc (a
-design.md, a brand guide, the audience) every agent in the team reads."""
+design.md, a brand guide, the audience) every agent in the team reads. A
+built-in team can keep its context in the repo (agents.CONTEXT_FILES); one
+written here takes its place, and clearing it goes back to the file."""
 
 import json
 import re
@@ -15,7 +17,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from .agents import STARTERS, Agent, Room, Sense, Team, from_library
+from .agents import CONTEXT_FILES, STARTERS, Agent, Room, Sense, Team, from_library
 from .db import DB_PATH
 from .design.roles import ROLES, RoleId
 
@@ -47,6 +49,7 @@ CREATE TABLE IF NOT EXISTS context (
 );
 """
 
+ROOT = Path(__file__).resolve().parents[2]  # the repo, for CONTEXT_FILES
 REPO = re.compile(r"^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$")
 
 
@@ -208,7 +211,10 @@ class TeamStore:
     def context(self, team_id: str) -> str:
         with self._connect() as conn:
             row = conn.execute("SELECT text FROM context WHERE team = ?", (team_id,)).fetchone()
-        return row[0] if row else ""
+        if row and row[0]:
+            return row[0]
+        path = CONTEXT_FILES.get(team_id)
+        return (ROOT / path).read_text().strip() if path else ""
 
     def set_context(self, team_id: str, text: str) -> None:
         with self._lock, self._connect() as conn:

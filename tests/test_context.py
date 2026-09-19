@@ -43,6 +43,22 @@ def test_deleting_a_team_deletes_its_context(client):
     assert client.get("/api/teams/gone/context").json()["text"] == ""
 
 
+def test_aurelia_is_built_in_and_reads_the_company_file(client):
+    company = (Path(__file__).resolve().parents[1] / "docs/company.md").read_text().strip()
+    rooms = {r["id"]: r for r in client.get("/api/rooms?team=aurelia").json()}
+    assert rooms["aurelia-meeting"]["lead"] == "aurelia-meeting-project-manager"
+    assert rooms["aurelia-marketing"]["lead"] == "aurelia-marketing-marketing-strategist"
+    assert client.get("/api/teams/aurelia/context").json()["text"] == company
+    client.put("/api/teams/aurelia/context", json={"text": DOC}).raise_for_status()
+    assert client.get("/api/teams/aurelia/context").json()["text"] == DOC  # the ui's wins
+    client.put("/api/teams/aurelia/context", json={"text": ""}).raise_for_status()
+    assert client.get("/api/teams/aurelia/context").json()["text"] == company  # cleared: the file
+    assert client.post("/api/workflows/meeting-to-marketing/start",
+                       json={"team": "aurelia"}).status_code == 409
+    assert client.delete("/api/teams/aurelia").status_code == 204
+    assert client.get("/api/rooms?team=aurelia").json() == []
+
+
 # ---- the context reaches the agents ----------------------------------------
 def heard(seen: list[str], args: dict) -> FunctionModel:
     """Answers every call with `args`, and keeps the instructions it was given."""
