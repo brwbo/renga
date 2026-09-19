@@ -8,7 +8,7 @@
 // and the page comes up broken. When the page's version isn't the one these
 // scripts expect, fetch it past the cache and reload, once. Bump both
 // together (the meta in index.html and PAGE here) when the page's markup changes.
-const PAGE = '4';
+const PAGE = '5';
 if (document.querySelector('meta[name=renga-page]')?.content !== PAGE
     && sessionStorage.getItem('renga-reloaded') !== PAGE) {
   sessionStorage.setItem('renga-reloaded', PAGE);
@@ -116,38 +116,21 @@ function renderHome() {
   const grid = $('teams');
   grid.replaceChildren();
   for (const t of state.teams) {
-    const card = el('section', 'team-card');
+    // The whole card opens the team; its rooms are picked from there.
+    const card = el('section', 'team-card team-card-link');
     card.setAttribute('aria-labelledby', `team-${t.id}`);
     const head = el('div', 'team-card-head');
     const h = el('h2'); h.id = `team-${t.id}`;
     const open = el('a', 'team-link', t.name);
     open.href = `#/team/${t.id}`;
     h.appendChild(open);
-    const repo = el('a', 'repo', t.repo);
-    repo.href = repoUrl(t.repo); repo.target = '_blank'; repo.rel = 'noopener';
     const del = el('button', 'del', 'delete');
     del.type = 'button';
     del.setAttribute('aria-label', `delete the ${t.name} team`);
     del.addEventListener('click', () => confirmDelete(card, `delete ${t.name}? its rooms and agents go too.`,
       () => deleteTeam(t.id)));
-    head.append(h, repo, del);
+    head.append(h, del);
     card.append(head, el('p', 'team-purpose', t.purpose));
-
-    const list = el('div', 'team-rooms');
-    for (const r of roomsOf(t.id)) {
-      const link = el('a', 'team-room');
-      link.href = `#/room/${r.id}`;
-      const top = el('div', 'tr-top');
-      top.append(el('span', 'hash', '#'), el('span', 'tr-name', r.name));
-      const members = Object.values(state.agents).filter((a) => a.room === r.id);
-      top.appendChild(el('span', 'tr-count', members.length ? `${members.length} agents` : 'empty'));
-      if (state.unread[r.id]) top.appendChild(unreadBadge(state.unread[r.id]));
-      const last = lastLine(r.id);
-      const preview = el('div', 'tr-last', last ? `${nameOf(last.from)}: ${last.text}` : r.purpose);
-      link.append(top, preview);
-      list.appendChild(link);
-    }
-    card.appendChild(list);
     grid.appendChild(card);
   }
 }

@@ -21,3 +21,13 @@
 .tv-open { margin-top: auto; align-self: flex-start; }
 .tv-open { font: 500 11.5px var(--ui); color: var(--group); text-decoration: none; }
 .tv-open:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* the teams page: each team is one card, and the whole card opens it. the
+   name's link stretches over the card; delete sits above it. */
+.team-card-link { position: relative; cursor: pointer; transition: border-color .15s var(--ease); }
+.team-card-link:hover { border-color: var(--ink-3); }
+.team-card-link .team-link::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.team-card-link .team-link:focus-visible { outline: none; }
+.team-card-link:has(.team-link:focus-visible) { outline: 2px solid var(--group); outline-offset: 2px; }
+.team-card-link .del, .team-card-link .confirm { position: relative; z-index: 1; }
+.team-card-link .team-purpose { margin-bottom: 8px; }
