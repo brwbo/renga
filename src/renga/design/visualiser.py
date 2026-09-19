@@ -18,6 +18,18 @@ from .crew import DEFAULT_MODEL, Line, about
 from .personality import voice
 from .roles import ROLES
 
+# Slides come every few seconds, so looking uses flash whenever the agents
+# think with gemini: its key is the one in the sandbox. RENGA_EYES_MODEL
+# picks another.
+EYES_MODEL = "google:gemini-3.6-flash"
+
+
+def eyes_model() -> str:
+    if chosen := os.environ.get("RENGA_EYES_MODEL"):
+        return chosen
+    thinks = os.environ.get("RENGA_MODEL", DEFAULT_MODEL)
+    return EYES_MODEL if thinks.startswith("google:") else thinks
+
 
 class Screen(BaseModel):
     """One look at the shared tab, as the extension sent it."""
@@ -43,7 +55,7 @@ class Seen(BaseModel):
 class Visualiser:
     def __init__(self, room: str, me: str, model: Model | str | None = None, context: str = ""):
         self.room, self.me = room, me
-        model = model or os.environ.get("RENGA_MODEL", DEFAULT_MODEL)
+        model = model or eyes_model()
         role = ROLES["visualiser"]
         self.agent = Agent(
             model, output_type=Seen, name="visualiser", defer_model_check=True,

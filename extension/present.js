@@ -5,7 +5,7 @@
 // ("is presenting", "stop presenting", a "(presentation)" tile), never by
 // class names.
 (() => {
-  const TICK_MS = 3000;
+  const TICK_MS = 1500;
   const SAYS = /\b(is|are) presenting\b|\byou'?re presenting\b|\bstop presenting\b|\(presentation\)|\bpresentation from\b/i;
   const NOT = /\bpresent now\b|\bstart presenting\b/i;
 
