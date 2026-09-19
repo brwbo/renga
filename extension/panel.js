@@ -365,13 +365,25 @@ function statusLine(event) {
   return wrap;
 }
 
+// A message's text, opening with who it's for, the way people write it in a
+// group chat: "@project manager can you…". A room is named as #room.
+function said(event) {
+  const tx = el('div', 'tx');
+  if (event.to && event.to !== 'admin') {
+    // old hand-offs were addressed to a team:<room>; they read as the room
+    const who = event.to.startsWith('team:') ? `#${event.to.slice(5)}` : nameOf(event.to);
+    tx.append(el('span', 'mention', who.startsWith('#') ? who : `@${who}`), ' ');
+  }
+  tx.append(event.text || '');
+  return tx;
+}
+
 function messageRow(event, continues) {
   const row = el('div', 'msg' + (continues ? ' cont' : ''));
   const body = el('div');
   if (!continues) {
     const meta = el('div', 'meta');
     meta.appendChild(el('span', 'who', nameOf(event.from)));
-    if (event.to) meta.appendChild(el('span', 'to', `→ ${nameOf(event.to)}`));
     meta.appendChild(el('span', 'time', clock(event.ts)));
     body.appendChild(meta);
   }
@@ -386,10 +398,10 @@ function messageRow(event, continues) {
   } else if (event.kind === 'task' && event.data?.delegated_from) {
     const card = el('div', 'card');
     card.append(el('div', 'card-label', `brief from ${room(event.data.delegated_from)?.name}`),
-                el('div', 'tx', event.text || ''));
+                said(event));
     body.appendChild(card);
   } else {
-    body.appendChild(el('div', 'tx', event.text || ''));
+    body.appendChild(said(event));
     if (event.kind === 'question') body.appendChild(questionCard(event));
     if (event.data?.files?.length) body.appendChild(workFiles(event.data.files));
   }
