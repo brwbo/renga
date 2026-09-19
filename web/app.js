@@ -57,6 +57,11 @@ const team = (id) => state.teams.find((t) => t.id === id);
 const room = (id) => state.rooms.find((r) => r.id === id);
 const roomsOf = (teamId) => state.rooms.filter((r) => r.team === teamId);
 const isLead = (id) => state.rooms.some((r) => r.lead === id);
+// Which group a room belongs to, for colour: the same rule as the side
+// panel. The room with an agent that hears the call is research; every
+// other room designs.
+const groupOf = (roomId) => (Object.values(state.agents)
+  .some((a) => a.room === roomId && a.senses?.includes('captions')) ? 'research' : 'design');
 
 function nameOf(id, fallback) {
   if (id === 'admin') return 'you';
@@ -227,6 +232,7 @@ $('team-form').addEventListener('submit', async (e) => {
 
 function openHome() {
   state.room = null;
+  delete document.body.dataset.group;
   $('app').hidden = true;
   $('home').hidden = false;
   document.title = 'renga';
@@ -321,6 +327,7 @@ function openRoom(id) {
   const t = team(r.team);
   state.room = id;
   state.unread[id] = 0;
+  document.body.dataset.group = groupOf(id);
   $('home').hidden = true;
   $('app').hidden = false;
   document.title = `#${r.name} · ${t.name}`;

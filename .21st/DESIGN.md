@@ -25,7 +25,7 @@ Generated from project sources at 2026-09-19T10:34:43.320Z.
 
 ## Tokens
 
-- Colour mode: light and dark in extension/ (follows the system, data-theme overrides); dark only in web/
+- Colour mode: light and dark in both web/ and extension/ (follows the system, data-theme overrides)
 
 ## Constraints
 
@@ -35,8 +35,8 @@ Generated from project sources at 2026-09-19T10:34:43.320Z.
 - no build step: plain html/css/js
 - respect prefers-reduced-motion
 - avatars are circles with 2 lowercase initials
-- two surfaces, two looks: web/ keeps the dark brass palette; extension/ (the chat panel) uses the chat-panel system in docs/chat-panel.md
-- web/: oxblood #6e2222 for clickable and team leads, brass #c9a227 for small marks and focus, bone #e9e4da text on night #0e1012; ibm plex sans + mono; 4px radius
+- one look on both surfaces: web/ and extension/ (the chat panel) both use the chat-panel system in docs/chat-panel.md; a room sets data-group on <body> for its colour
+- the old oxblood/brass palette survives only as the shared :root block, the source of the dark ramp; nothing is styled with it directly
 - shared tokens live in web/style.css :root and are copied value for value into the FIRST :root block of extension/panel.css - tests/test_extension.py fails if they drift
 - chat panel tokens go on `body` in extension/panel.css, never in that shared :root
 - chat panel: light and dark both defined; light is the base, dark follows the system unless data-theme="light|dark" on <body> overrides
@@ -56,7 +56,7 @@ Generated from project sources at 2026-09-19T10:34:43.320Z.
 - emoji as icons
 - space grotesk: review chrome in the prototypes only, it never ships
 - toasts and alerts in the chat panel - errors show in place, with the fix on them
-- ibm plex or the oxblood/brass palette inside extension/ - that's web/'s look
+- ibm plex, or styling anything with the oxblood/brass tokens directly
 
 ## Decisions
 
