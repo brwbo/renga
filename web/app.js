@@ -8,13 +8,25 @@
 // and the page comes up broken. When the page's version isn't the one these
 // scripts expect, fetch it past the cache and reload, once. Bump both
 // together (the meta in index.html and PAGE here) when the page's markup changes.
-const PAGE = '6';
+const PAGE = '7';
 if (document.querySelector('meta[name=renga-page]')?.content !== PAGE
     && sessionStorage.getItem('renga-reloaded') !== PAGE) {
   sessionStorage.setItem('renga-reloaded', PAGE);
   fetch(location.pathname, { cache: 'reload' }).finally(() => location.reload());
   throw new Error('old page, reloading');
 }
+
+// An open tab never reloads by itself, so it asks now and then whether the
+// page has moved on, and picks the new one up when you're not mid-message.
+setInterval(async () => {
+  const busy = document.getElementById('c-input')?.value || document.getElementById('context-dialog')?.open;
+  if (busy || document.hidden) return;
+  try {
+    const html = await (await fetch('/', { cache: 'no-store' })).text();
+    const live = html.match(/name="renga-page" content="([^"]+)"/)?.[1];
+    if (live && live !== PAGE) location.reload();
+  } catch (_) { /* offline: the conn dot already says so */ }
+}, 30000);
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => {
