@@ -3,7 +3,13 @@ It reads what's been said in the meeting room since it last looked, decides
 what needs doing, and hands each piece to the team room that should do it.
 Each hand-off lands with that room's lead, whose crew (crew.py) does the work.
 
+It only hands off work it can brief without guessing. It checks the meeting
+and the team's context doc first; what's still missing (a rate, a date, who
+it's for) it asks for in the chat, and the work waits until someone answers,
+in the chat or on the call.
+
     meeting lines -> project manager: Routing -> a line in the meeting
+                                              -> what it still needs, in the meeting
                                               -> a brief to each team's lead"""
 
 import os
@@ -33,11 +39,32 @@ class Handoff(BaseModel):
                                    "said, and what done looks like")
 
 
+class Need(BaseModel):
+    """Work held back because a brief would have to guess."""
+
+    work: str = Field(description="the piece of work that's waiting, in a few words")
+    room: str = Field(description="the id of the room it will go to once you have the answers")
+    asks: list[str] = Field(min_length=1, description="each fact you still need, as a short "
+                                                      "question the person can answer in a line")
+
+
 class Routing(BaseModel):
     say: str | None = Field(default=None, description="your line in the chat: your answer when "
                                                       "the person talked to you, and what you "
-                                                      "sent where. empty when there's nothing to say")
-    handoffs: list[Handoff] = Field(default_factory=list)
+                                                      "sent where. don't repeat the questions in "
+                                                      "`needs`: they're posted as their own list. "
+                                                      "empty when there's nothing to say")
+    handoffs: list[Handoff] = Field(default_factory=list,
+                                    description="work you can brief without guessing any fact")
+    needs: list[Need] = Field(default_factory=list,
+                              description="work that waits, and what you need to hand it off. "
+                                          "only what the meeting and the team's context don't answer")
+
+
+def asking(need: Need, rooms: dict[str, str]) -> str:
+    """How a need reads in the chat."""
+    asks = "\n".join(f"- {a}" for a in need.asks)
+    return f"before {need.work} goes to #{rooms.get(need.room, need.room)}, i need:\n{asks}"
 
 
 class Router:
@@ -59,12 +86,22 @@ class Router:
                          "plain lowercase, the way a person writes in a chat. nothing is sent, posted or published "
                          "outside renga: the teams make drafts for a person to approve. lines "
                          "you've already handed off are marked; never hand the same thing off twice."
+                         "\n\n## enough to brief\n\nhand work off only when the team could make it "
+                         "without guessing a fact: numbers, rates, prices, dates, names, who it's "
+                         "for, where it runs. look in the context doc (below, when there is one) and "
+                         "in the meeting first, and never ask for what either already says. whatever is still "
+                         "missing goes in `needs`, and that work waits: don't hand it off, and "
+                         "don't fill the gap yourself. taste (tone, which option, wording) isn't a "
+                         "fact: the team decides it and the person reviews it. your own earlier "
+                         "`before … i need:` lines are what you're still waiting on: once the "
+                         "person or the call answers, hand that work off with the answers in the "
+                         "brief, and don't ask again for what's been answered."
                          + about(context))
         self.agent.output_validator(self._check)
 
     def _check(self, routing: Routing) -> Routing:
         known = {t.room for t in self.targets}
-        if bad := sorted({h.room for h in routing.handoffs} - known):
+        if bad := sorted({h.room for h in [*routing.handoffs, *routing.needs]} - known):
             raise ModelRetry(f"there's no room {', '.join(bad)}. use one of: {', '.join(sorted(known))}")
         return routing
 
@@ -76,5 +113,9 @@ class Router:
         routing = (await self.agent.run(prompt)).output
         if routing.say:
             yield Line(agent_id=self.pm, channel=self.room, kind="chat", text=routing.say)
+        names = {t.room: t.name for t in self.targets}
+        for n in routing.needs:
+            yield Line(agent_id=self.pm, channel=self.room, kind="chat", text=asking(n, names),
+                       data={"need": n.model_dump()})
         for h in routing.handoffs:
             yield Line(agent_id=self.pm, channel=self.room, kind="delegate", to=h.room, text=h.brief)

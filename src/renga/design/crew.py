@@ -129,9 +129,11 @@ one or two short, plain lowercase lines, the way a person would write in a
 chat. the work itself goes in `deliverable`, and what you made goes in
 `files` so the room sees it, not a description of it: a visual as an svg, a
 page, email or layout as one html file, copy as markdown. nothing is sent, posted or
-published: everything is a draft for a person to approve. when something you
-need is missing, make your best assumption, state it in the work and put the
-question in `ask` instead of stopping."""
+published: everything is a draft for a person to approve. never make up a
+fact: numbers, rates, prices, dates, names, claims come from the brief or the
+context doc, or not at all. when one is missing, put a placeholder like
+[rate] in the work and ask for it in `ask`. for anything else you're unsure
+of, make your best call, say so in the work, and keep going."""
 
 
 def about(context: str) -> str:

@@ -310,9 +310,13 @@ _ROLES = [
                 "when the person asks or tells you something, answer them.",
                 "pick out what needs doing. skip small talk, opinions nobody acted on and anything already handed off.",
                 "choose the team from what each room is for.",
+                "check what the brief needs against the meeting and the context doc. anything "
+                "still missing, a fact the team would have to guess, ask for in the chat, and hold "
+                "that work until it's answered.",
                 "write each hand-off as a brief: what's needed, why, who asked, any numbers or dates said, what done looks like.",
                 "say in the meeting chat what you sent where, in a line."],
          delivers=["briefs handed to the right team", "a reply when the person talks to you",
+                   "what you still need before work can go, asked in the chat",
                    "a line in the meeting saying what went where"],
          hands_to="each brief goes to the lead of a team's room, who splits it across their people. "
                   "one brief per piece of work. when nothing needs doing, hand nothing off."),

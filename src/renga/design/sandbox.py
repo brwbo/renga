@@ -39,8 +39,9 @@ APP = "renga-design"
 IDLE = 20 * 60  # a sandbox with nothing running shuts down after this
 LIFETIME = 24 * 60 * 60
 LOGFIRE = ["logfire-us.pydantic.dev", "logfire-eu.pydantic.dev"]
-QUIET = 15.0  # the pm reads the meeting once it goes quiet for this long...
+QUIET = 15.0  # the meeting is read once it goes quiet for this long...
 BACKLOG = 8   # ...or once this many lines are waiting, whichever comes first
+PM_BACKLOG = 40  # the pm waits for the speaker to finish: only a very long run of lines cuts in
 
 # provider: (the modal secret with its key, the one api host it may reach)
 PROVIDERS = {
@@ -239,7 +240,8 @@ def listen(renga: str, every: float = 2.0) -> None:
                 elif who == "eyes" and m.look:
                     ready = True
                 else:
-                    ready = time.monotonic() - m.last >= QUIET or m.waiting >= BACKLOG
+                    ready = (time.monotonic() - m.last >= QUIET
+                             or m.waiting >= (PM_BACKLOG if who == "pm" else BACKLOG))
                 if not ready:
                     continue
                 log = client.get("/api/events", params={"channel": room_id}).json()
