@@ -194,7 +194,7 @@ def test_bad_files_are_refused(client):
 
 
 def working(seen: list[str] | None = None) -> FunctionModel:
-    """A crew that plans one copywriter, who hands back a file, and approves it."""
+    """A crew that plans one graphic designer, who hands back a file, and approves it."""
 
     def reply(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         if seen is not None:
@@ -202,7 +202,7 @@ def working(seen: list[str] | None = None) -> FunctionModel:
         tool = info.output_tools[0]
         fields = tool.parameters_json_schema["properties"]
         if "assignments" in fields:
-            args = {"say": "copy has it", "assignments": [{"role": "copywriter", "task": "a hero"}]}
+            args = {"say": "design has it", "assignments": [{"role": "graphic-designer", "task": "a hero"}]}
         elif "approved" in fields:
             args = {"say": "ship it", "approved": True}
         else:
@@ -220,7 +220,7 @@ def test_files_from_a_crew_run_land_in_the_room_as_links(client):
         return [line async for line in crew.run("a hero")]
 
     lines = asyncio.run(go())
-    done = next(line for line in lines if line.agent_id == "design-copywriter" and line.kind == "announce_done")
+    done = next(line for line in lines if line.agent_id == "design-graphic-designer" and line.kind == "announce_done")
     assert done.data["files"] == [{"name": "hero.svg", "content": SVG}]
     for line in lines:
         path, body = line.request()

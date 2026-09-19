@@ -263,3 +263,15 @@ def test_the_next_host_posts_the_notice_once(client):
     said = client.get("/api/events?channel=logfire").json()[-1]
     assert said["from"] == "logfire" and said["data"]["interrupted"] and said["data"]["trace_id"] == "t1"
     assert announce(client, client.get("/api/events").json()) == 0  # a second restart stays quiet
+
+
+def test_the_copywriter_writes_and_the_designers_make_the_image():
+    from renga.design.crew import File, Work
+    crew = Crew(PRESETS_BY_ID["brand-campaign"], model=scripted([]))
+    assert "never attach an svg or html" in crew._instructions("copywriter")
+    assert "never attach an svg" not in crew._instructions("graphic-designer")
+    files = [File(name="post.md", content="# the post"), File(name="hero.svg", content="<svg/>")]
+    [done] = crew._done("copywriter", Work(say="done", deliverable="x", files=files))
+    assert [f["name"] for f in done.data["files"]] == ["post.md"]  # its image never lands
+    [done] = crew._done("graphic-designer", Work(say="done", deliverable="x", files=files))
+    assert [f["name"] for f in done.data["files"]] == ["post.md", "hero.svg"]

@@ -136,6 +136,13 @@ context doc, or not at all. when one is missing, put a placeholder like
 of, make your best call, say so in the work, and keep going."""
 
 
+# Roles that write. The image, the layout and the page are the designers'
+# to make from their words, so a svg or html from one of them never lands.
+WORDS = {"copywriter", "ux-writer", "brand-strategist", "marketing-strategist",
+         "content-strategist", "seo-specialist", "researcher"}
+VISUAL = (".svg", ".html", ".css")
+
+
 def about(context: str) -> str:
     """The team's context (its design.md, brand guide, audience), for an
     agent's instructions. Empty when the team has none."""
@@ -178,6 +185,11 @@ class Crew:
                 f"## your team\n\nyou're the {me.name} in #{self.room}, a design team that "
                 f"does {self.preset.does}. the lead is the {ROLES[self.lead].name}. "
                 f"the others:\n{others}\n\n{HOUSE_RULES}{about(self.context)}")
+        if role in WORDS:
+            text += ("\n\n## your files\n\nyou write, you don't make visuals. your files are "
+                     "markdown: the copy, where each piece goes and how big it should feel. the "
+                     "image, the layout and the page are the designers' to make from your words, "
+                     "so never attach an svg or html, even when the brief asks for an image.")
         if lead == "plan":
             text += ("\n\n## now: plan\n\nyou lead this room. split the brief into assignments, "
                      "one per person, only for the people the work needs. for each, `doing` is "
@@ -220,8 +232,9 @@ class Crew:
 
     def _done(self, role: str, work: Work) -> list[Line]:
         data = {"deliverable": work.deliverable}
-        if work.files:
-            data["files"] = [f.model_dump() for f in work.files]
+        files = [f for f in work.files if not (role in WORDS and f.name.endswith(VISUAL))]
+        if files:
+            data["files"] = [f.model_dump() for f in files]
         lines = [self._line(role, "announce_done", work.say, data=data)]
         if work.ask:
             lines.append(self._line(role, "question", work.ask.text, options=work.ask.options))
