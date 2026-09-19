@@ -4,6 +4,18 @@
 // count what you missed. #/ is the teams page, #/room/<id> is a room.
 'use strict';
 
+// A browser can keep an old index.html while it fetches these scripts new,
+// and the page comes up broken. When the page's version isn't the one these
+// scripts expect, fetch it past the cache and reload, once. Bump both
+// together (the meta in index.html and PAGE here) when the page's markup changes.
+const PAGE = '2';
+if (document.querySelector('meta[name=renga-page]')?.content !== PAGE
+    && sessionStorage.getItem('renga-reloaded') !== PAGE) {
+  sessionStorage.setItem('renga-reloaded', PAGE);
+  fetch(location.pathname, { cache: 'reload' }).finally(() => location.reload());
+  throw new Error('old page, reloading');
+}
+
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => {
   const node = document.createElement(tag);
