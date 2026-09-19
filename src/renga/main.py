@@ -1,5 +1,10 @@
 """The server: the event log over http and a websocket, the teams (one per
-repo) and their rooms, delegation between rooms, and the question queue. Serves the chat app in web/ at /."""
+repo) and their rooms, delegation between rooms, the question queue, and the
+agent library with its premade workflows. Serves the chat app in web/ at /.
+
+With RENGA_BRAINS=modal the server also starts the agents' host
+(design/sandbox.py listen) in the background, so library agents work
+without a second process."""
 
 import base64
 import binascii
@@ -24,6 +29,7 @@ from .questions import store as questions
 from .teams import AgentIn, TeamIn
 from .teams import slug as teams_slug
 from .teams import store as teams
+from .workflows import WORKFLOWS, WORKFLOWS_BY_ID
 
 ROOT = Path(__file__).resolve().parents[2]
 WEB = ROOT / "web"
@@ -34,7 +40,18 @@ FRAMES.mkdir(parents=True, exist_ok=True)
 
 logfire.configure(send_to_logfire="if-token-present", console=False)
 
-app = FastAPI(title="renga")
+@contextlib.asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if os.environ.get("RENGA_BRAINS") == "modal":
+        import threading
+
+        from .design.sandbox import listen
+        url = os.environ.get("RENGA_URL", "http://localhost:8020")
+        threading.Thread(target=listen, args=(url,), daemon=True).start()
+    yield
+
+
+app = FastAPI(title="renga", lifespan=lifespan)
 
 
 class ChatIn(BaseModel):
@@ -126,28 +143,77 @@ async def delete_agent(agent_id: str) -> None:
 
 
 class DelegateIn(BaseModel):
-    """The pm handing a piece of work to another room in its team."""
+    """A room's lead handing a piece of work to another room in its team:
+    the built-in pm, or a project manager from the library."""
 
     room: str
     text: str = Field(min_length=1, max_length=8000)
     data: dict | None = None
+    from_agent: str = "pm"
 
 
 @app.post("/api/delegate", status_code=201)
 async def delegate(body: DelegateIn) -> dict:
-    pm = agents.agent("pm")
-    if not pm:
-        raise HTTPException(409, "there's no pm to delegate the work")
-    home = pm.room
+    who = agents.agent(body.from_agent)
+    if not who:
+        raise HTTPException(409, f"there's no {body.from_agent} to delegate the work")
+    home = agents.room(who.room)
+    if home.lead != who.id:
+        raise HTTPException(403, f"only #{home.name}'s lead hands work out")
     room = agents.room(body.room)
-    if not room or room.id == home or room.team != agents.room(home).team:
+    if not room or room.id == home.id or room.team != home.team:
         raise HTTPException(404, f"no room called {body.room!r} to delegate to")
-    # One line in the meeting room so you can see where the work went, and
+    # One line in the lead's room so you can see where the work went, and
     # the brief itself in the other room, addressed to its lead.
-    await emit(home, "handoff", from_="pm", to=f"room:{room.id}",
+    await emit(home.id, "handoff", from_=who.id, to=f"room:{room.id}",
                text=f"sent to #{room.name}: {body.text}", data={"room": room.id})
-    return await emit(room.id, "task", from_="pm", to=room.lead, text=body.text,
-                      data={**(body.data or {}), "delegated_from": home})
+    return await emit(room.id, "task", from_=who.id, to=room.lead, text=body.text,
+                      data={**(body.data or {}), "delegated_from": home.id})
+
+
+# ---- the agent library -----------------------------------------------------
+@app.get("/api/library")
+def library() -> dict:
+    """Every premade agent, and every premade workflow."""
+    from .design.roles import ROLES
+
+    return {
+        "agents": [{"id": r.id, "name": r.name, "initials": r.initials, "does": r.does,
+                    "group": r.group, "senses": r.senses,
+                    "personality": r.personality.model_dump()} for r in ROLES.values()],
+        "workflows": [{"id": w.id, "name": w.name, "does": w.does, "how": w.how,
+                       "rooms": [{"name": p.name, "purpose": p.purpose, "lead": p.lead,
+                                  "members": [m.role for m in p.members]} for p in w.rooms]}
+                      for w in WORKFLOWS],
+    }
+
+
+class StartIn(BaseModel):
+    team: str
+
+
+@app.post("/api/workflows/{workflow_id}/start", status_code=201)
+async def start_workflow(workflow_id: str, body: StartIn) -> dict:
+    """Set a workflow's rooms and agents up in a team."""
+    workflow = WORKFLOWS_BY_ID.get(workflow_id)
+    if not workflow:
+        raise HTTPException(404, f"no workflow called {workflow_id!r}")
+    if not agents.team(body.team):
+        raise HTTPException(404, f"no team called {body.team!r}")
+    rooms, members = workflow.build(body.team)
+    named = {r.name for r in agents.all_rooms(body.team)}
+    if clash := [r.name for r in rooms if r.name in named]:
+        raise HTTPException(409, f"{agents.team(body.team).name} already has a #{clash[0]}. "
+                                 "set this up in another team, or delete that room's team first")
+    try:
+        teams.add_rooms(rooms, members, taken_rooms={r.id for r in agents.all_rooms()},
+                        taken_agents={a.id for a in agents.all_agents()})
+    except ValueError as err:
+        raise HTTPException(409, f"{err}: this workflow is already set up here") from err
+    for r in rooms:
+        await emit(r.id, "state", from_=r.lead, text=f"#{r.name} is set up, from the {workflow.name} workflow",
+                   data={"workflow": workflow.id})
+    return {"rooms": rooms, "agents": members}
 
 
 @app.get("/api/events")

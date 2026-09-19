@@ -87,17 +87,30 @@ logfire. every brief runs as a process inside it and streams its lines
 back; renga stays on your machine and posts them into the room. changing
 the agents' code gets you a fresh sandbox.
 
+## the agent library
+
+**agent library** on the teams page lists every premade agent (the design
+and marketing roles, plus a listener and a project manager) and every
+premade workflow. an agent joins any room in a click; a workflow sets up
+whole rooms of agents in a team. the first workflow, **meeting to design and
+marketing**, is the connector between a meeting and the teams: the listener
+hears the call through the extension and posts it in `#meeting`, the
+project manager turns what needs doing into briefs for `#design` or
+`#marketing`, and that room's crew does the work.
+
 setting up modal (login, profile, the model key), using gemini instead of
-claude, and how the sandboxes behave: [docs/design-teams.md](docs/design-teams.md).
+claude, the library and workflows, and how the sandboxes behave:
+[docs/design-teams.md](docs/design-teams.md). start renga with
+`RENGA_BRAINS=modal` and the agents run inside it; or run their host on its own:
 
 ```bash
-# one brief to one team
+# one brief straight to one room's crew
 PYTHONPATH=src .venv/bin/python -m renga.design.sandbox run brand-campaign "..."
 
-# or leave it running: anything the pm delegates to a team's room, that team picks up
+# or leave it running: crews pick up briefs, project managers read meetings
 PYTHONPATH=src .venv/bin/python -m renga.design.sandbox listen
 
-# shut every team's sandbox down
+# shut every room's sandbox down
 PYTHONPATH=src .venv/bin/python -m renga.design.sandbox stop
 ```
 

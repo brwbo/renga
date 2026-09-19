@@ -23,6 +23,7 @@
         <p class="purpose">each team works on one repo and talks in its own rooms.</p>
       </div>
       <div class="home-actions">
+        <a class="btn ghost-btn" href="#/library">agent library</a>
         <button type="button" id="get-extension" class="btn ghost-btn" aria-expanded="false" aria-controls="extension-help">chrome extension</button>
         <button type="button" id="new-team" class="btn" aria-expanded="false" aria-controls="team-form">new team</button>
       </div>
@@ -79,6 +80,31 @@
     </form>
 
     <div id="teams" class="teams"></div>
+  </main>
+</div>
+
+<div class="home" id="library" hidden>
+  <header class="home-head">
+    <a class="wordmark" href="#/">renga</a>
+    <span class="conn" title="connecting"><i></i><span class="sr">connecting</span></span>
+  </header>
+  <main class="home-body">
+    <div class="home-title">
+      <div>
+        <h1>agent library</h1>
+        <p class="purpose">premade workflows set up whole rooms of agents in a team. premade agents join any room.</p>
+      </div>
+      <div class="home-actions"><a class="btn ghost-btn" href="#/">back to teams</a></div>
+    </div>
+    <div id="library-error" class="err" role="alert" hidden></div>
+    <section aria-labelledby="wf-title">
+      <h2 id="wf-title" class="lib-h">workflows</h2>
+      <div id="workflows" class="lib-grid"></div>
+    </section>
+    <section aria-labelledby="ag-title">
+      <h2 id="ag-title" class="lib-h">agents</h2>
+      <div id="library-agents"></div>
+    </section>
   </main>
 </div>
 
@@ -149,5 +175,6 @@
 </div>
 
 <script src="/app.js"></script>
+<script src="/library.js"></script>
 </body>
 </html>

@@ -55,6 +55,50 @@ to corporate) and traits from four groups, at most two per group. both
 become lines in the agent's instructions. designteam's moods, xp, memory
 and relationships are not ported: nothing is remembered between runs.
 
+## the agent library
+
+open **agent library** on the teams page (`#/library`). it has two halves.
+
+**agents.** eighteen premade agents in three groups: the two meeting agents
+(listener, project manager), and the sixteen design and marketing roles
+above. pick a room and click **add**: the agent joins it with its role,
+personality and senses. an agent made from the library remembers which role
+it came from (`template`), and that's what gives it a brain.
+
+**workflows.** rooms of library agents that work together, set up in a team
+in one click: pick the team, click **set up**. each design team above is a
+one-room workflow, so any team can have one. a workflow won't make a second
+room with a name the team already uses.
+
+a room has brains when its lead came from the library: a design or
+marketing lead runs a crew on each brief it's handed, and a project manager
+reads the meeting.
+
+## the meeting workflow
+
+**meeting to design and marketing** connects a meeting to the teams. it
+sets up three rooms:
+
+| room | who | lead |
+|---|---|---|
+| `#meeting` | listener, project manager | project manager |
+| `#design` | creative director, graphic designer, ux designer, motion designer | creative director |
+| `#marketing` | marketing strategist, copywriter, social media designer, content strategist | marketing strategist |
+
+1. **the listener hears the call.** it has the captions sense, so the chrome
+   extension posts meet's captions into `#meeting` as the listener. you can
+   also type into `#meeting` yourself.
+2. **the project manager reads it.** once the meeting pauses (15 seconds
+   with nothing new) or 8 lines have piled up, it reads what's new, with
+   what was said before as context. lines it already handed off are marked,
+   so it doesn't send the same thing twice.
+3. **it hands work to a team.** anything that needs doing becomes a brief
+   for `#design` or `#marketing`, with who asked, the numbers and dates said,
+   and what done looks like. it says in `#meeting` what it sent where. when
+   nothing needs doing, it sends nothing.
+4. **the team does it.** the brief lands with that room's lead, and the crew
+   plans, works and reviews as above. the drafts come back in that room.
+
 ## set up modal
 
 once per machine.
@@ -112,18 +156,29 @@ once per machine.
 
    any other provider is refused before a sandbox starts.
 
-## run a team
+## run the agents
 
-start renga first (see the readme), then from the repo root:
+the simplest way: start renga with the agents' host inside it. every room
+with brains then works on its own: crews pick up briefs, project managers
+read their meetings.
 
 ```bash
-# one brief to one team
+RENGA_BRAINS=modal RENGA_MODEL=google:gemini-3.1-pro-preview \
+  .venv/bin/python -m uvicorn renga.main:app --app-dir src --port 8020
+```
+
+`RENGA_URL` tells it where renga is when that isn't `http://localhost:8020`.
+
+or run the host on its own, from the repo root, next to a running renga:
+
+```bash
+# one brief straight to one room's crew
 PYTHONPATH=src .venv/bin/python -m renga.design.sandbox run brand-campaign "a linkedin post about onboarding in a day"
 
-# or leave it running: anything the pm delegates to a team's room, that team picks up
+# or leave it running: crews pick up briefs, project managers read meetings
 PYTHONPATH=src .venv/bin/python -m renga.design.sandbox listen
 
-# shut every team's sandbox down
+# shut every room's sandbox down
 PYTHONPATH=src .venv/bin/python -m renga.design.sandbox stop
 ```
 
@@ -133,12 +188,14 @@ real brief to the brand campaign team.
 
 ## the sandboxes
 
-- **one per team.** a team's first brief starts a sandbox named
-  `renga-<team>-<hash>` in the modal app `renga-design`. later briefs reuse
-  it, so several teams can work at once without sharing anything.
-- **a brief is a process inside it.** the brief goes in on stdin, and the
-  team's lines come back on stdout, one json object per line, which the host
-  posts into renga.
+- **one per room.** a room's first job starts a sandbox named
+  `renga-<room>-<hash>` in the modal app `renga-design`. later jobs reuse
+  it, so several rooms can work at once without sharing anything.
+- **a job is a process inside it.** the host sends one typed `Job` on stdin:
+  a crew with its members and the brief, or a project manager with the
+  rooms it can hand to and the meeting so far. the agents' lines come back on
+  stdout, one json object per line, which the host posts into renga. the
+  sandbox never touches renga's database.
 - **it shuts itself down** after 20 idle minutes, and after 24 hours at most.
   `stop` shuts them all down straight away.
 - **it can only reach** its model's api (see the table above) and logfire
@@ -148,7 +205,7 @@ real brief to the brand campaign team.
   taken from `src/renga/design/` and `RENGA_MODEL`, so after a change the
   next brief starts a fresh sandbox with the new code, key and model. the
   old one shuts down once idle.
-- **the first brief for a team is slower**, because it builds the image and
+- **the first job for a room is slower**, because it builds the image and
   starts the sandbox.
 
 ## settings
@@ -157,22 +214,32 @@ real brief to the brand campaign team.
 |---|---|
 | `RENGA_MODEL` | the model every agent uses. default `anthropic:claude-sonnet-5`; `google:gemini-3.1-pro-preview` for gemini. passed into the sandbox when it's created |
 | `LOGFIRE_TOKEN` | add it to the model's modal secret (`anthropic` or `gemini`) to trace the agents' runs in logfire |
+| `RENGA_BRAINS` | `modal` starts the agents' host inside the renga server |
+| `RENGA_URL` | where the host in the server finds renga. default `http://localhost:8020` |
 
 ## the code
 
-all in `src/renga/design/`:
+in `src/renga/design/`:
 
 | file | what's in it |
 |---|---|
-| `roles.py` | the sixteen roles as pydantic models |
+| `roles.py` | every library role as a pydantic model, with its group |
 | `personality.py` | the sliders and traits, and how they become instructions |
-| `presets.py` | the seven teams, their members and traits, and who leads |
-| `crew.py` | the pydantic ai agents and their typed hand-offs: `Plan`, `Work`, `Review`, `Line` |
-| `inside.py` | what runs inside a team's sandbox |
-| `sandbox.py` | the host: starts or finds a team's sandbox, runs briefs, posts back. `run`, `listen`, `stop` |
+| `presets.py` | the seven design teams, their members and traits, and who leads |
+| `crew.py` | a team's pydantic ai agents and their typed hand-offs: `Plan`, `Work`, `Review`, `Line` |
+| `router.py` | the project manager: reads the meeting, returns a `Routing` of `Handoff`s |
+| `jobs.py` | the `Job` the host sends a sandbox, and which rooms have brains |
+| `inside.py` | what runs inside a room's sandbox |
+| `sandbox.py` | the host: starts or finds a room's sandbox, runs jobs, posts back. `run`, `listen`, `stop` |
 
-`tests/test_design.py` runs whole teams against a scripted model, so the
-tests need no api key and no modal account:
+and around it: `src/renga/workflows.py` (the premade workflows),
+`/api/library` and `/api/workflows/<id>/start` in `src/renga/main.py`, and
+the library page in `web/library.js`.
+
+`tests/test_design.py` runs whole teams against a scripted model, and
+`tests/test_library.py` runs the meeting workflow end to end the same way,
+from the listener's lines to the design team's drafts. the tests need no api
+key and no modal account:
 
 ```bash
 .venv/bin/python -m pytest

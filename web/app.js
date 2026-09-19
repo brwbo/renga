@@ -45,7 +45,7 @@ async function api(path, options) {
 }
 
 function showError(message) {
-  for (const id of ['error', 'home-error']) {
+  for (const id of ['error', 'home-error', 'library-error']) {
     $(id).textContent = message || '';
     $(id).hidden = !message;
   }
@@ -334,8 +334,10 @@ function openRoom(id) {
 }
 
 function route() {
+  $('library').hidden = true;
   const m = location.hash.match(/^#\/room\/([\w-]+)$/);
   if (m && room(m[1])) openRoom(m[1]);
+  else if (location.hash === '#/library') openLibrary(); // library.js
   else openHome();
 }
 

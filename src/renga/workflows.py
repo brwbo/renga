@@ -1,0 +1,89 @@
+"""Premade workflows: rooms of library agents that work together, set up in
+any team in one go. Starting one makes its rooms and agents; the agents' host
+(design/sandbox.py listen) runs them.
+
+The meeting workflow is the connector between a meeting and the teams: the
+listener hears the call and posts it in the meeting room, the project manager
+reads that and hands anything that needs doing to the design or marketing
+room, whose lead splits it across the room and has it done."""
+
+from pydantic import BaseModel, Field, model_validator
+
+from .agents import Agent, Room, from_library
+from .design.presets import PRESETS, Member
+from .design.roles import RoleId
+from .teams import slug
+
+
+class RoomPlan(BaseModel):
+    name: str = Field(pattern=r"^[a-z0-9-]+$")
+    purpose: str
+    lead: RoleId
+    members: list[Member] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _lead_is_in_it(self) -> "RoomPlan":
+        if self.lead not in {m.role for m in self.members}:
+            raise ValueError(f"#{self.name}'s lead isn't in the room")
+        return self
+
+
+class Workflow(BaseModel):
+    id: str = Field(pattern=r"^[a-z0-9-]+$")
+    name: str
+    does: str
+    how: list[str] = Field(default_factory=list)  # the steps, for the library page
+    rooms: list[RoomPlan] = Field(min_length=1)
+
+    def build(self, team: str) -> tuple[list[Room], list[Agent]]:
+        """The rooms and agents this workflow makes in a team. Ids follow the
+        team: `<team>-<room>` for rooms, `<team>-<room>-<role>` for agents."""
+        rooms, agents = [], []
+        for plan in self.rooms:
+            room_id = f"{team}-{plan.name}"
+            ids = {m.role: f"{room_id}-{slug(m.role)}" for m in plan.members}
+            rooms.append(Room(id=room_id, team=team, name=plan.name,
+                              purpose=plan.purpose, lead=ids[plan.lead]))
+            agents += [from_library(m.role, ids[m.role], room_id, traits=m.traits)
+                       for m in plan.members]
+        return rooms, agents
+
+
+def _m(role: str, *traits: str) -> Member:
+    return Member(role=role, traits=list(traits))
+
+
+MEETING = Workflow(
+    id="meeting-to-teams", name="meeting to design and marketing",
+    does="a listener hears the meeting, a project manager turns what's said into briefs "
+         "and hands them to the design and marketing rooms, who do the work",
+    how=["the listener posts what's said in the meeting, through the chrome extension",
+         "when the meeting pauses, the project manager reads what's new",
+         "anything that needs doing goes to #design or #marketing as a brief",
+         "that room's lead splits it across the room, and the drafts come back to you"],
+    rooms=[
+        RoomPlan(name="meeting", lead="project-manager",
+                 purpose="hears the meeting and hands out what needs doing",
+                 members=[_m("listener"), _m("project-manager", "stoic", "methodical", "leader", "judging")]),
+        RoomPlan(name="design", lead="creative-director",
+                 purpose="visuals, layouts, product and brand design",
+                 members=[_m("creative-director", "intense", "big-picture", "leader", "judging"),
+                          _m("graphic-designer", "stoic", "perfectionist", "introvert", "thinking"),
+                          _m("ux-designer", "chill", "iterative", "collaborator", "feeling"),
+                          _m("motion-designer", "enthusiastic", "chaotic-creative", "extrovert", "risk-taker")]),
+        RoomPlan(name="marketing", lead="marketing-strategist",
+                 purpose="campaigns, copy, social and content",
+                 members=[_m("marketing-strategist", "intense", "big-picture", "leader", "thinking"),
+                          _m("copywriter", "sassy", "fast-shipper", "extrovert", "risk-taker"),
+                          _m("social-media-designer", "enthusiastic", "fast-shipper", "collaborator", "optimist"),
+                          _m("content-strategist", "nurturing", "methodical", "mentor", "judging")]),
+    ],
+)
+
+# Each design team is also a one-room workflow, so any team can have one.
+WORKFLOWS: list[Workflow] = [MEETING] + [
+    Workflow(id=p.id, name=p.id.replace("-", " "), does=p.does,
+             rooms=[RoomPlan(name=p.id, purpose=p.does, lead=p.lead, members=p.members)])
+    for p in PRESETS
+]
+WORKFLOWS_BY_ID: dict[str, Workflow] = {w.id: w for w in WORKFLOWS}

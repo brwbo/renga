@@ -6,9 +6,12 @@ the lookups at the bottom.
 The pm sits in the meeting room and delegates to another room in its team by
 handing the work to that room's lead, who splits it across the room.
 
-The design teams (design/presets.py) each get a room here, and have brains:
-pydantic ai agents hosted in modal sandboxes (design/sandbox.py). The meeting room's
-agents don't have brains yet."""
+An agent made from the agent library (design/roles.py) remembers which role
+it came from in `template`. Those are the ones with brains: pydantic ai
+agents hosted in modal sandboxes (design/sandbox.py). The design teams
+(design/presets.py) each get a room here, made from the library; the
+built-in meeting room's agents don't have brains yet. Workflows
+(workflows.py) set up whole rooms of library agents in any team."""
 
 from typing import Literal
 
@@ -44,6 +47,16 @@ class Agent(BaseModel):
     room: str
     initials: str = Field(min_length=1, max_length=2)
     senses: list[Sense] = Field(default_factory=list)
+    template: str | None = None  # the library role it was made from, if any
+    traits: list[str] = Field(default_factory=list)
+
+
+def from_library(role: str, id: str, room: str, name: str | None = None,
+                 traits: list[str] = ()) -> Agent:
+    """An agent made from a library role."""
+    r = ROLES[role]
+    return Agent(id=id, name=name or r.name, role=r.does, room=room, initials=r.initials,
+                 senses=list(r.senses), template=role, traits=list(traits))
 
 
 TEAMS: list[Team] = [
@@ -76,8 +89,7 @@ ROSTER: list[Agent] = [
 # Every design team is a room the pm can hand material to, led by its lead.
 ROOMS += [Room(id=p.id, team="renga", name=p.id, purpose=p.does, lead=agent_id(p.id, p.lead))
           for p in PRESETS]
-ROSTER += [Agent(id=agent_id(p.id, m.role), name=ROLES[m.role].name, room=p.id,
-                 initials=ROLES[m.role].initials, role=ROLES[m.role].does)
+ROSTER += [from_library(m.role, agent_id(p.id, m.role), p.id, traits=m.traits)
            for p in PRESETS for m in p.members]
 
 # Agents a new team can start with, one per sense.
@@ -109,7 +121,9 @@ def all_teams() -> list[Team]:
 
 def all_rooms(team: str | None = None) -> list[Room]:
     gone = _removed()["team"]
-    rooms = [r for r in ROOMS if r.team not in gone] + [r for _, rs, _ in _made() for r in rs]
+    from .teams import store
+    rooms = ([r for r in ROOMS if r.team not in gone] + [r for _, rs, _ in _made() for r in rs]
+             + store.added_rooms())
     return [r for r in rooms if team is None or r.team == team]
 
 

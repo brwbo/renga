@@ -29,8 +29,10 @@ class Ask(BaseModel):
     """Something only a person can answer. The work goes ahead on a stated
     assumption; the question waits in the room for you."""
 
-    text: str
-    options: list[str] = Field(default_factory=list, max_length=5)
+    text: str = Field(description="one question")
+    options: list[str] = Field(default_factory=list, max_length=5,
+                               description="short answers the person can click, e.g. "
+                                           "'yes' or 'a case study link'. never more questions")
 
 
 class Assignment(BaseModel):
@@ -67,14 +69,17 @@ class Line(BaseModel):
 
     agent_id: str
     channel: str
-    kind: Literal["chat", "announce_start", "announce_done", "task", "question"]
+    kind: Literal["chat", "announce_start", "announce_done", "task", "question", "delegate"]
     text: str
-    to: str | None = None
+    to: str | None = None  # for a delegate line: the room it goes to
     data: dict | None = None
     options: list[str] = Field(default_factory=list)
 
     def request(self) -> tuple[str, dict]:
         """The path and body that post this line to renga."""
+        if self.kind == "delegate":
+            return "/api/delegate", {"from_agent": self.agent_id, "room": self.to,
+                                     "text": self.text, "data": self.data}
         if self.kind == "question":
             return "/api/questions", {"agent_id": self.agent_id, "channel": self.channel,
                                       "text": self.text, "options": self.options,
@@ -111,10 +116,13 @@ question in `ask` instead of stopping."""
 
 class Crew:
     def __init__(self, preset: Preset, room: str | None = None,
-                 model: Model | str | None = None):
+                 model: Model | str | None = None, ids: dict[str, str] | None = None):
+        """`ids` maps each role to its agent id in renga, for a room whose
+        agents aren't named `<preset>-<role>`."""
         self.preset = preset
         self.room = room or preset.id
         self.lead = preset.lead
+        self.ids = ids or {}
         model = model or os.environ.get("RENGA_MODEL", DEFAULT_MODEL)
         self.members = {m.role: Agent(model, output_type=Work, name=m.role,
                                       instructions=self._instructions(m.role),
@@ -129,7 +137,7 @@ class Crew:
         self.planner.output_validator(self._check_plan)
 
     def id(self, role: str) -> str:
-        return agent_id(self.preset.id, role)
+        return self.ids.get(role) or agent_id(self.preset.id, role)
 
     def _instructions(self, role: str, lead: str | None = None) -> str:
         me = ROLES[role]

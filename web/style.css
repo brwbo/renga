@@ -373,6 +373,36 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 
 /* ------------------------------------------------------------------ mobile */
 /* narrower: the agents rail becomes a drawer from the right */
+/* ---------------------------------------------------------- agent library */
+.lib-h { margin: 36px 0 0; font: 500 13px/1 var(--mono); color: var(--faint); letter-spacing: .04em; }
+.lib-sub { margin: 24px 0 0; font-size: 16px; font-weight: 600; }
+.lib-group .purpose { margin: 2px 0 0; font-size: 14px; color: var(--muted); }
+.lib-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px; margin-top: 14px;
+}
+.lib-card { padding-bottom: 16px; }
+.lib-card h3, .lib-card h4 { margin: 0; font-size: 17px; font-weight: 600; }
+.lib-feature { grid-column: 1 / -1; border-left: 2px solid var(--oxblood-lit); }
+.lib-how { margin: 0 0 14px; padding-left: 20px; font-size: 14px; color: var(--bone); }
+.lib-how li { margin: 2px 0; }
+.lib-rooms { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.lib-room { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lib-room .tr-name { font-family: var(--mono); font-size: 14px; }
+.lib-faces { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.lib-agent-head { display: flex; align-items: center; gap: 10px; }
+.lib-agent .team-purpose { margin: 8px 0 12px; }
+.lib-sense { margin: -6px 0 12px; font: 400 12px/1.4 var(--mono); color: var(--brass); }
+.lib-act { display: flex; gap: 8px; margin-top: auto; }
+.lib-pick { flex: 1; min-width: 0; }
+.lib-pick select {
+  width: 100%; min-height: 40px; padding: 0 10px; border-radius: var(--radius);
+  border: 1px solid var(--night-edge); background: var(--night); color: var(--bone); font: inherit;
+}
+.lib-note { margin: 8px 0 0; min-height: 1em; font-size: 13px; color: var(--muted); }
+.lib-note a { color: var(--brass); }
+.lib-note.bad { color: var(--hot); }
+
 @media (max-width: 1100px) {
   .app { grid-template-columns: 240px 1fr; }
   .crew-toggle { display: inline-block; }
@@ -393,7 +423,7 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   .side .label, .team-head { display: none; }
   .back { white-space: nowrap; }
   .home-head, .home-body { padding-left: 16px; padding-right: 16px; }
-  .teams { grid-template-columns: 1fr; }
+  .teams, .lib-grid { grid-template-columns: 1fr; }
   .fields { grid-template-columns: 1fr; }
   .home-title { align-items: flex-start; }
   .rooms { flex-direction: row; }
