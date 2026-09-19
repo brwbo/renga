@@ -329,6 +329,55 @@ class Meeting:
         self.asked = False  # the project manager's: the person said something, answer now
 
 
+def _phase(e: dict) -> str:
+    """Where a #logfire line sits in its run: start, run or end. Lines from
+    before they said so are read from their shape."""
+    d = e.get("data") or {}
+    if "phase" in d:
+        return d["phase"]
+    if "runs" in d or " stopped: " in (e.get("text") or ""):
+        return "end"
+    if (e.get("text") or "").startswith(f"#{d.get('room')} ") and "role" not in d:
+        return "start"
+    return "run"
+
+
+def interrupted(events: list[dict]) -> list[Line]:
+    """Runs a #logfire room saw start and never finish or stop. The host runs
+    inside the server, so a restart kills every run in flight without a
+    word; the next host to start says so, once, on the run's own trace."""
+    running: dict[tuple[str, str, str], dict] = {}
+    for e in events:
+        d = e.get("data") or {}
+        # the logfire agent shares its room's id, and every run line names both
+        if e["from"] != e["channel"] or not d.get("trace_id") or not d.get("room"):
+            continue
+        key, phase = (e["channel"], d["trace_id"], d["room"]), _phase(e)
+        if phase == "start":
+            running[key] = e
+        elif phase == "end":
+            running.pop(key, None)
+    return [Line(agent_id=where, channel=where, kind="chat",
+                 text=f"#{room} was interrupted: renga restarted before it finished",
+                 data={"trace_id": trace, "room": room, "phase": "end", "interrupted": True})
+            for (where, trace, room) in running]
+
+
+def announce(client, log: list[dict]) -> int:
+    """Post a notice for every interrupted run in the log. Returns how many.
+    One that can't be posted is skipped: it mustn't stop the host."""
+    n = 0
+    for line in interrupted(log):
+        print(line.text)
+        path, body = line.request()
+        try:
+            client.post(path, json=body).raise_for_status()
+            n += 1
+        except Exception as err:
+            print(f"couldn't post that: {err}")
+    return n
+
+
 def listen(renga: str, every: float = 2.0) -> None:
     """Watch renga. A brief handed to a crew's lead from another room starts
     that crew. What's said in a meeting room (the listener's transcript) wakes
@@ -360,7 +409,9 @@ def listen(renga: str, every: float = 2.0) -> None:
             m.waiting, m.last = m.waiting + 1, time.monotonic()
 
     with httpx.Client(base_url=renga, timeout=30) as client:
-        since = max((e["id"] for e in client.get("/api/events").json()), default=0)
+        log = client.get("/api/events").json()
+        since = max((e["id"] for e in log), default=0)
+        announce(client, log)  # the runs the last host was in the middle of
         print(f"listening to {renga}")
         while True:
             rooms, agents = client.get("/api/rooms").json(), client.get("/api/agents").json()

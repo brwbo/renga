@@ -216,5 +216,50 @@ def test_the_logfire_agent_posts_each_run_into_its_room(client):
     assert texts[1] == "#design started on a brief"
     assert any(t.startswith("#design: creative director (plan) took") for t in texts)
     assert texts[-1].startswith("#design finished: 5 agent runs")
+    phases = [e["data"].get("phase") for e in lines[1:]]  # after the hand-off
+    assert phases[0] == "start" and phases[-1] == "end" and set(phases[1:-1]) == {"run"}
     # the hand-off and the team's run are one trace
     assert {e["data"]["trace_id"] for e in lines} == {parent.split("-")[1]}
+
+
+def test_a_run_cut_off_by_a_restart_is_called_interrupted():
+    from renga.design.sandbox import interrupted
+
+    def line(i, text, **data):
+        return {"id": i, "channel": "aurelia-logfire", "from": "aurelia-logfire", "kind": "chat",
+                "text": text, "data": {"room": "aurelia-design", **data}}
+
+    log = [
+        line(1, "pm handed a brief to #design", trace_id="a"),  # the hand-off isn't a run
+        line(2, "#aurelia-design started on a brief", trace_id="a", phase="start"),
+        line(3, "#aurelia-design: copywriter took 3s", trace_id="a", phase="run", role="copywriter"),
+        line(4, "#aurelia-design started on a brief", trace_id="b", phase="start"),
+        line(5, "#aurelia-design finished: 1 agent runs, 9 tokens", trace_id="b", phase="end", runs=1),
+        # from before lines said their phase: read from their shape
+        line(6, "#aurelia-design started on a brief", trace_id="c"),
+        line(7, "#aurelia-design started on a brief", trace_id="d"),
+        line(8, "#aurelia-design stopped: boom", trace_id="d", error="boom"),
+        {"id": 9, "channel": "aurelia-design", "from": "aurelia-pm", "kind": "task", "text": "x",
+         "data": {"trace_id": "e", "room": "aurelia-design"}},  # not a #logfire line
+    ]
+    cut = interrupted(log)
+    assert [(line.channel, line.data["trace_id"]) for line in cut] == [("aurelia-logfire", "a"),
+                                                                       ("aurelia-logfire", "c")]
+    assert cut[0].text == "#aurelia-design was interrupted: renga restarted before it finished"
+    # said once: the next host sees the notice as the run's end
+    notices = [{"id": 10 + i, "channel": x.channel, "from": x.agent_id, "kind": "chat",
+                "text": x.text, "data": x.data} for i, x in enumerate(cut)]
+    assert interrupted(log + notices) == []
+
+
+def test_the_next_host_posts_the_notice_once(client):
+    from renga.design.sandbox import announce
+
+    client.post("/api/say", json={"agent_id": "logfire", "channel": "logfire",
+                                  "text": "#design started on a brief",
+                                  "data": {"trace_id": "t1", "room": "design", "phase": "start"}}
+                ).raise_for_status()
+    assert announce(client, client.get("/api/events").json()) == 1
+    said = client.get("/api/events?channel=logfire").json()[-1]
+    assert said["from"] == "logfire" and said["data"]["interrupted"] and said["data"]["trace_id"] == "t1"
+    assert announce(client, client.get("/api/events").json()) == 0  # a second restart stays quiet
