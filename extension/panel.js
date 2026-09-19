@@ -175,18 +175,18 @@ function setCall(status) {
 async function checkCall() {
   if (!senser('captions')) { setCall(null); return; }
   if (!hasChrome) { setCall(null); return; }
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !/^https:\/\/meet\.google\.com\/.+/.test(tab.url || '')) { setCall(null); return; }
-  const { status } = await chrome.runtime.sendMessage({ type: 'get-captions-status', tabId: tab.id });
-  setCall(status || 'missing');
+  // Any meet tab counts, in front or not: the call goes on while you're
+  // looking at something else.
+  const { status } = await chrome.runtime.sendMessage({ type: 'get-call' });
+  setCall(status);
 }
 
 if (hasChrome) {
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'captions-status') checkCall();
   });
-  chrome.tabs.onActivated.addListener(checkCall);
   chrome.tabs.onUpdated.addListener((_, info) => { if (info.url || info.status === 'complete') checkCall(); });
+  chrome.tabs.onRemoved.addListener(checkCall);
 }
 
 // ---- the attach menu ---------------------------------------------------
@@ -294,9 +294,13 @@ function openRoom(id) {
   document.body.dataset.group = group;
   // Said twice, here and in send's colour: once the input can carry a
   // codebase, a mis-send is expensive.
+  // Named after who is actually in the room, so #logfire doesn't claim design agents.
+  const names = Object.values(state.agents).filter((a) => a.room === id).map((a) => a.name);
+  const who = names.length > 3 ? `the ${names.length} agents`
+    : names.join(' and ').replace(/ and (?=.* and )/g, ', ');
   $('dest').replaceChildren(
-    document.createTextNode('goes to the '),
-    el('b', null, group === 'research' ? 'call agents' : 'design agents'),
+    document.createTextNode('goes to '),
+    el('b', null, who || 'nobody yet'),
     document.createTextNode(` in #${room(id).name}.`));
   renderTabs();
   renderLog();

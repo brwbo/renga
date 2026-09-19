@@ -1,5 +1,5 @@
 """Plays a short meeting into the rooms so there is something to watch before
-the agents have brains. The pm hands the marketing work to the brand campaign
+the agents have brains. The pm hands the marketing work to the design
 team, whose creative director splits it up. Talks to a running server over
 http, the same way the agents on modal do. (The design teams have real brains:
 with `python -m renga.design.sandbox listen` running, the brief below starts

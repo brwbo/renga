@@ -10,8 +10,28 @@ const SERVER = 'http://localhost:8020';
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
 // What each meet tab's caption reader last reported, so the panel can say
-// whether it's actually hearing anything.
-const captionState = {};
+// whether it's actually hearing anything. Kept in session storage: chrome
+// stops this worker whenever the call goes quiet for half a minute, and a
+// plain object would forget the call was on.
+const MEETING = /^https:\/\/meet\.google\.com\/.+/;
+async function captionState() {
+  const { calls = {} } = await chrome.storage.session.get('calls');
+  return calls;
+}
+async function setCaptionState(tabId, status) {
+  const calls = await captionState();
+  if (status) calls[tabId] = status; else delete calls[tabId];
+  await chrome.storage.session.set({ calls });
+}
+
+// The call the panel reports on: any meet tab hearing captions, or else one
+// with them off. You can be in another tab while the call goes on.
+async function callStatus() {
+  const calls = await captionState();
+  const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+  const live = tabs.filter((t) => MEETING.test(t.url || '')).map((t) => calls[t.id]).filter(Boolean);
+  return live.includes('on') ? 'on' : (live.length ? 'missing' : null);
+}
 
 // The team's captions agent, looked up again at most every ten seconds so a
 // team switch in the panel takes effect without reloading the extension.
@@ -31,8 +51,8 @@ chrome.storage.onChanged.addListener((changes) => { if (changes.team) cached.at 
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg.type === 'captions-status' && sender.tab) {
-    captionState[sender.tab.id] = msg.status;
-    chrome.runtime.sendMessage({ type: 'captions-status', tabId: sender.tab.id, status: msg.status })
+    setCaptionState(sender.tab.id, msg.status).then(() =>
+      chrome.runtime.sendMessage({ type: 'captions-status', tabId: sender.tab.id, status: msg.status }))
       .catch(() => {}); // no panel open: nobody to tell
     return false;
   }
@@ -47,11 +67,14 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     }).catch(() => reply({ ok: false }));
     return true; // reply is async
   }
-  if (msg.type === 'get-captions-status') {
-    reply({ status: captionState[msg.tabId] || null });
-    return false;
+  if (msg.type === 'get-call') {
+    callStatus().then((status) => reply({ status }), () => reply({ status: null }));
+    return true;
   }
   return false;
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => { delete captionState[tabId]; });
+chrome.tabs.onRemoved.addListener((tabId) => { setCaptionState(tabId, null); });
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (info.url && !MEETING.test(info.url)) setCaptionState(tabId, null); // left the call
+});

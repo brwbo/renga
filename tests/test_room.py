@@ -168,3 +168,15 @@ def test_extension_zip_points_at_this_server(client):
 def test_the_logfire_room_takes_no_briefs(client):
     r = client.post("/api/delegate", json={"room": "logfire", "text": "x"})
     assert r.status_code == 404
+
+
+def test_an_agent_shows_as_thinking_until_it_speaks_or_its_job_ends(client):
+    copy, art = "design-copywriter", "design-graphic-designer"
+    for who in (copy, art):
+        client.post("/api/thinking", json={"agent_id": who, "channel": "design"}).raise_for_status()
+    assert sorted(client.get("/api/thinking").json()["design"]) == [copy, art]
+    client.post("/api/say", json={"agent_id": copy, "text": "done", "channel": "design"}).raise_for_status()
+    assert client.get("/api/thinking").json() == {"design": [art]}
+    client.post("/api/thinking", json={"channel": "design", "on": False}).raise_for_status()
+    assert client.get("/api/thinking").json() == {}
+    assert client.post("/api/thinking", json={"agent_id": copy, "channel": "main"}).status_code == 403

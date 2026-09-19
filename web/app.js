@@ -337,6 +337,7 @@ function openRoom(id) {
   $('room-name').textContent = `#${r.name}`;
   $('room-purpose').textContent = r.purpose;
   $('c-input').placeholder = `message #${r.name}`;
+  loadContext(t); // work.js
   renderRooms();
   renderMembers();
   renderLog();
@@ -397,6 +398,7 @@ function statusLine(event) {
   const row = el('div', cls);
   const who = el('b', null, nameOf(event.from, event.data?.name));
   row.append(who, document.createTextNode(` ${event.text || event.kind.replace('_', ' ')}`));
+  if (event.data?.files?.length || event.data?.deliverable) return workCard(row, event); // work.js
   if (!event.data?.frame) return row;
   // What a screen reader saw: the screenshot, linking to the page it came from.
   const wrap = el('div', 'seen');

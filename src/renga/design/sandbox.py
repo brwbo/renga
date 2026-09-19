@@ -1,6 +1,7 @@
 """The agents' host. Every room with brains gets its own named modal sandbox,
 and every piece of work is a process run inside it (inside.py): a crew
-working a brief, or a project manager reading the meeting. What they say
+working a brief, a listener picking actions out of the meeting, or a
+project manager handing them to the teams. What they say
 streams back here and is posted into renga. renga stays on your machine;
 only the agents run on modal.
 
@@ -9,15 +10,15 @@ It can only reach the model's api (and logfire), nothing else. Its name
 carries a hash of this package and the model, so changing the agents' code
 or the model gets you a fresh sandbox instead of a stale one.
 
-The model is RENGA_MODEL (claude by default); its provider decides which
+The model is RENGA_MODEL (gemini by default); its provider decides which
 modal secret holds the key.
 
-    # once: the key the agents think with, claude or gemini
-    modal secret create anthropic ANTHROPIC_API_KEY=...
-    modal secret create gemini GEMINI_API_KEY=...   # with RENGA_MODEL=google:...
+    # once: the key the agents think with, gemini (or claude)
+    modal secret create gemini GEMINI_API_KEY=...
+    modal secret create anthropic ANTHROPIC_API_KEY=...   # with RENGA_MODEL=anthropic:...
 
     python -m renga.design.sandbox run brand-campaign "a linkedin post about..."
-    python -m renga.design.sandbox listen   # crews pick up briefs, pms read meetings
+    python -m renga.design.sandbox listen   # crews pick up briefs, listeners and pms read meetings
     python -m renga.design.sandbox stop     # shuts every room's sandbox down
 """
 
@@ -30,7 +31,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from .crew import DEFAULT_MODEL, Line
-from .jobs import Job, brains, crew_job, router_job
+from .jobs import Job, brains, crew_job, listener_job, listener_of, router_job
 
 APP = "renga-design"
 IDLE = 20 * 60  # a sandbox with nothing running shuts down after this
@@ -101,6 +102,15 @@ def pump(out: Iterable[str], post: Callable[[str, dict], object]) -> int:
     return n
 
 
+def prepare(client, job: Job, room: dict, rooms: list[dict]) -> Job:
+    """What the host adds to every job: whether to post the runs into
+    #logfire, and the team's context doc."""
+    job.watch = any(r["id"] == "logfire" for r in rooms)
+    r = client.get(f"/api/teams/{room['team']}/context")
+    job.context = r.json().get("text", "") if r.is_success else ""
+    return job
+
+
 def run_job(renga: str, job: Job) -> None:
     """Run one job in its room's sandbox and post what it says into renga."""
     import httpx
@@ -114,7 +124,10 @@ def run_job(renga: str, job: Job) -> None:
             r = client.post(path, json=body)
             if r.is_error:
                 print(f"renga said {r.status_code} to {body.get('agent_id') or body.get('from_agent')}: {r.text}")
-        pump(proc.stdout, post)
+        try:
+            pump(proc.stdout, post)
+        finally:  # however the job ends, nobody in the room is thinking any more
+            post("/api/thinking", {"channel": job.room, "on": False})
     if proc.wait():
         print(f"#{job.room} stopped with an error:\n{proc.stderr.read()}")
 
@@ -125,17 +138,16 @@ def run(renga: str, room_id: str, brief: str) -> None:
 
     with httpx.Client(base_url=renga, timeout=30) as client:
         rooms, agents = client.get("/api/rooms").json(), client.get("/api/agents").json()
-    room = next((r for r in rooms if r["id"] == room_id), None)
-    if not room or brains(room, agents) != "crew":
-        crews = sorted(r["id"] for r in rooms if brains(r, agents) == "crew")
-        raise SystemExit(f"{room_id!r} isn't a room with a crew. try one of: {', '.join(crews)}")
-    job = crew_job(room, agents, brief)
-    job.watch = any(r["id"] == "logfire" for r in rooms)
+        room = next((r for r in rooms if r["id"] == room_id), None)
+        if not room or brains(room, agents) != "crew":
+            crews = sorted(r["id"] for r in rooms if brains(r, agents) == "crew")
+            raise SystemExit(f"{room_id!r} isn't a room with a crew. try one of: {', '.join(crews)}")
+        job = prepare(client, crew_job(room, agents, brief), room, rooms)
     run_job(renga, job)
 
 
 class Meeting:
-    """One meeting room the project manager is reading."""
+    """One meeting room an agent is reading: its listener, or its project manager."""
 
     def __init__(self, since: int):
         self.routed = since  # everything up to here has been read
@@ -146,8 +158,10 @@ class Meeting:
 
 def listen(renga: str, every: float = 2.0) -> None:
     """Watch renga. A brief handed to a crew's lead from another room starts
-    that crew; what's said in a meeting room wakes its project manager once
-    the meeting goes quiet or enough has piled up. Nothing is replayed."""
+    that crew. What's said in a meeting room wakes its listener once the
+    meeting goes quiet or enough has piled up; the actions it sends wake the
+    project manager as soon as it's done. A meeting room with no listener
+    wakes its project manager on what's said. Nothing is replayed."""
     import httpx
 
     def start(job: Job, done: Callable[[], None] = lambda: None) -> None:
@@ -160,7 +174,13 @@ def listen(renga: str, every: float = 2.0) -> None:
                 done()
         threading.Thread(target=go, daemon=True).start()
 
-    meetings: dict[str, Meeting] = {}
+    meetings: dict[tuple[str, str], Meeting] = {}  # (room, "listener" or "pm")
+
+    def heard(room_id: str, who: str, event_id: int) -> None:
+        m = meetings.setdefault((room_id, who), Meeting(event_id - 1))
+        if event_id > m.routed:  # a line the last job already read doesn't wake the next one
+            m.waiting, m.last = m.waiting + 1, time.monotonic()
+
     with httpx.Client(base_url=renga, timeout=30) as client:
         since = max((e["id"] for e in client.get("/api/events").json()), default=0)
         print(f"listening to {renga}")
@@ -172,25 +192,40 @@ def listen(renga: str, every: float = 2.0) -> None:
                 room = by_id.get(e["channel"])
                 if not room:
                     continue
-                kind = brains(room, agents)
+                kind, ears = brains(room, agents), listener_of(room, agents)
                 if (kind == "crew" and e["kind"] == "task" and e["to"] == room["lead"]
                         and (e.get("data") or {}).get("delegated_from")):
                     print(f"#{room['name']} got a brief, its crew is on it")
                     job = crew_job(room, agents, e["text"], (e.get("data") or {}).get("traceparent", ""))
-                    job.watch = "logfire" in by_id
-                    start(job)
+                    start(prepare(client, job, room, rooms))
                 elif kind == "router" and e["kind"] in ("chat", "answer") and e["from"] != room["lead"]:
-                    m = meetings.setdefault(room["id"], Meeting(e["id"] - 1))
-                    m.waiting, m.last = m.waiting + 1, time.monotonic()
-            for room_id, m in meetings.items():
-                quiet = time.monotonic() - m.last >= QUIET
-                if m.waiting and not m.busy and (quiet or m.waiting >= BACKLOG) and room_id in by_id:
-                    log = client.get("/api/events", params={"channel": room_id}).json()
-                    job = router_job(by_id[room_id], rooms, agents, log, m.routed)
-                    job.watch = "logfire" in by_id
-                    m.routed, m.waiting, m.busy = since, 0, True
-                    print(f"#{by_id[room_id]['name']}: the project manager is reading {len(job.new)} lines")
-                    start(job, done=lambda m=m: setattr(m, "busy", False))
+                    heard(room["id"], "listener" if ears else "pm", e["id"])
+                elif ears and e["kind"] == "task" and e["from"] == ears["id"] and e["to"] == room["lead"]:
+                    heard(room["id"], "pm", e["id"])
+            for (room_id, who), m in meetings.items():
+                if room_id not in by_id or not m.waiting or m.busy:
+                    continue
+                room = by_id[room_id]
+                ears = listener_of(room, agents)
+                if who == "pm" and ears:  # the listener waited for the pause; go once it's done
+                    ready = not meetings.get((room_id, "listener"), Meeting(0)).busy
+                else:
+                    ready = time.monotonic() - m.last >= QUIET or m.waiting >= BACKLOG
+                if not ready:
+                    continue
+                log = client.get("/api/events", params={"channel": room_id}).json()
+                if who == "listener" and ears:
+                    job = listener_job(room, agents, log, m.routed)
+                    print(f"#{room['name']}: the listener is listening to {len(job.new)} lines for actions")
+                else:
+                    job = router_job(room, rooms, agents, log, m.routed)
+                    print(f"#{room['name']}: the project manager is reading {len(job.new)} lines")
+                # the log can run ahead of `since`: whatever this job reads is read
+                m.routed, m.waiting = max([since, *(e["id"] for e in log)]), 0
+                if not job.new:
+                    continue
+                m.busy = True
+                start(prepare(client, job, room, rooms), done=lambda m=m: setattr(m, "busy", False))
             time.sleep(every)
 
 

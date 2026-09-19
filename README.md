@@ -101,8 +101,8 @@ project manager turns what needs doing into briefs for `#design` or
 `#marketing`, and that room's crew does the work. how that marketing should
 look and sound: [docs/company.md](docs/company.md).
 
-setting up modal (login, profile, the model key), using gemini instead of
-claude, the library and workflows, and how the sandboxes behave:
+setting up modal (login, profile, the model key), using claude instead of
+gemini, the library and workflows, and how the sandboxes behave:
 [docs/design-teams.md](docs/design-teams.md). start renga with
 `RENGA_BRAINS=modal` and the agents run inside it; or run their host on its own:
 
@@ -117,8 +117,8 @@ PYTHONPATH=src .venv/bin/python -m renga.design.sandbox listen
 PYTHONPATH=src .venv/bin/python -m renga.design.sandbox stop
 ```
 
-the model is `anthropic:claude-sonnet-5` unless `RENGA_MODEL` says otherwise
-(`google:gemini-3.1-pro-preview` for gemini).
+the model is `google:gemini-3.1-pro-preview` unless `RENGA_MODEL` says otherwise
+(`anthropic:claude-sonnet-5` for claude).
 
 ## run it
 

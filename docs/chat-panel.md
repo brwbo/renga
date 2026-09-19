@@ -148,7 +148,7 @@ is compatible as written.
 
 | what it shows | where the data is |
 |---|---|
-| record dot | `captionState` in `background.js:14`, read through the `get-captions-status` message at `background.js:50`. gives `on` / `missing` / none — enough for "is the call being captured" |
+| record dot | `captionState()` in `background.js` (kept in `chrome.storage.session`, so a restarted worker remembers the call), read through the `get-call` message, across every meet tab. gives `on` / `missing` / none — enough for "is the call being captured" |
 | elapsed time | **nothing.** no call has a start time. cheapest source is the ts of the first caption event in the channel; the honest one is a `state` event (`events.py:Kind` already has `state`) when captions first report `on` |
 | waveform | decorative, `aria-hidden`, needs no data |
 | highlight count | **nothing.** needs highlights to exist first. once they do it's a count of events of that kind in the channel, which `/api/events` already returns |

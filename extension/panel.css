@@ -362,3 +362,27 @@ button { cursor: pointer; }
   .wave { height: var(--s0); background: currentColor; opacity: .55; border-radius: 1px; }
   .wave i { display: none; }
 }
+
+/* ---------------------------------------------------------------- thinking */
+/* who is working on a reply, above the composer: faces, a line, three dots */
+.thinking {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  color: var(--ink-2); animation: in var(--t-base) var(--ease);
+}
+.thinking-faces { display: flex; }
+.thinking-faces .av + .av { margin-left: -6px; box-shadow: 0 0 0 2px var(--surface); }
+.thinking .dots { display: inline-flex; gap: 3px; align-items: center; height: 16px; }
+.thinking .dots i {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--group);
+  animation: think 1.2s var(--ease) infinite;
+}
+.thinking .dots i:nth-child(2) { animation-delay: .15s; }
+.thinking .dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes think {
+  0%, 60%, 100% { transform: translateY(0); opacity: .35; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thinking .dots i { animation: none; opacity: .7; }
+}
+body > .thinking { padding: 0 var(--s3) var(--s2); }

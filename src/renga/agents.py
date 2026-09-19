@@ -10,8 +10,9 @@ An agent made from the agent library (design/roles.py) remembers which role
 it came from in `template`. Those are the ones with brains: pydantic ai
 agents hosted in modal sandboxes (design/sandbox.py). The design teams
 (design/presets.py) each get a room here, made from the library. In the
-built-in meeting room only the pm has brains, as a project manager that
-routes the meeting to the design rooms; the rest don't yet. Workflows
+built-in meeting room the transcript has brains, as a listener that sends the
+pm each action it hears, and so does the pm, as a project manager that
+routes them to #design; the rest don't yet. Workflows
 (workflows.py) set up whole rooms of library agents in any team."""
 
 from typing import Literal
@@ -80,7 +81,8 @@ ROSTER: list[Agent] = [
     Agent(id="pm", name="pm", room="main", initials="pm", template="project-manager",
           role="runs the meeting room, splits the work and delegates it to other rooms"),
     Agent(id="transcript", name="transcript", room="main", initials="tr", senses=["captions"],
-          role="live speech to text, with speaker labels"),
+          template="listener",
+          role="live speech to text, with speaker labels, and the actions it hears sent to the pm"),
     Agent(id="visual", name="visual", room="main", initials="vi", senses=["screen"],
           role="reads screen shares, slides and whatever tab you're on"),
     Agent(id="notes", name="notes", room="main", initials="no",
@@ -92,10 +94,11 @@ ROSTER: list[Agent] = [
 ]
 
 # renga's rooms: the meeting, one design crew the pm hands material to, and
-# #logfire for the traces. The crew is the brand-campaign line-up; the other
-# presets stay in the library as workflows, to set up in a team when wanted.
+# #logfire for the traces. The crew is the brand-campaign line-up; the other presets stay in the
+# library as workflows, to set up in a team when one is wanted.
 DESIGN = PRESETS_BY_ID["brand-campaign"]
-ROOMS.insert(1, Room(id="design", team="renga", name="design", lead=agent_id("design", DESIGN.lead),
+ROOMS.insert(1, Room(id="design", team="renga", name="design",
+                     lead=agent_id("design", DESIGN.lead),
                      purpose="turns what the meeting decides into material: copy, visuals, social"))
 ROSTER += [from_library(m.role, agent_id("design", m.role), "design", traits=m.traits)
            for m in DESIGN.members]

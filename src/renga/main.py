@@ -12,6 +12,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import uuid
 import zipfile
 from pathlib import Path
@@ -30,6 +31,7 @@ from .questions import store as questions
 from .teams import AgentIn, TeamIn
 from .teams import slug as teams_slug
 from .teams import store as teams
+from .thinking import thinking
 from .workflows import WORKFLOWS, WORKFLOWS_BY_ID
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -38,6 +40,11 @@ EXTENSION = ROOT / "extension"
 # Screenshots the extension sends in. Kept as files, never in the event log.
 FRAMES = Path(os.environ.get("RENGA_FRAMES", ROOT / "frames"))
 FRAMES.mkdir(parents=True, exist_ok=True)
+# What the agents make (svg, html, markdown), kept as files like the frames.
+FILES = Path(os.environ.get("RENGA_FILES", ROOT / "files"))
+FILES.mkdir(parents=True, exist_ok=True)
+FILE_TYPES = {"svg": "image/svg+xml", "html": "text/html", "md": "text/markdown",
+              "txt": "text/plain", "csv": "text/csv", "json": "application/json", "css": "text/css"}
 
 logfire.configure(send_to_logfire="if-token-present", console=False)
 
@@ -102,6 +109,27 @@ def create_team(body: TeamIn) -> dict:
     except ValueError as err:
         raise HTTPException(409, str(err)) from err
     return {"team": team, "rooms": rooms, "agents": members}
+
+
+class ContextIn(BaseModel):
+    """The team's context: markdown every agent in the team reads."""
+
+    text: str = Field(max_length=50_000)
+
+
+@app.get("/api/teams/{team_id}/context")
+def get_context_doc(team_id: str) -> dict:
+    if not agents.team(team_id):
+        raise HTTPException(404, f"no team called {team_id!r}")
+    return {"team": team_id, "text": teams.context(team_id)}
+
+
+@app.put("/api/teams/{team_id}/context")
+def set_context_doc(team_id: str, body: ContextIn) -> dict:
+    if not agents.team(team_id):
+        raise HTTPException(404, f"no team called {team_id!r}")
+    teams.set_context(team_id, body.text.strip())
+    return {"team": team_id, "text": teams.context(team_id)}
 
 
 @app.get("/api/rooms")
@@ -254,11 +282,38 @@ async def say(body: SayIn) -> dict:
         raise HTTPException(403, f"{body.agent_id} isn't in the {body.channel!r} room")
     if body.kind in ("question", "answer"):
         raise HTTPException(422, "questions go through /api/questions")
+    data = body.data
+    if data and data.get("files"):
+        data = {**data, "files": save_files(data["files"])}
     try:
         return await emit(body.channel, body.kind, from_=body.agent_id, to=body.to,
-                          text=body.text, data=body.data)
+                          text=body.text, data=data)
     except ValueError as err:  # the event failed validation, e.g. an unknown kind
         raise HTTPException(422, str(err)) from err
+
+
+class ThinkingIn(BaseModel):
+    """An agent starting a model call (`on`), or its job ending (`on` false,
+    no agent: everyone in the room stops)."""
+
+    channel: str
+    agent_id: str | None = None
+    on: bool = True
+
+
+@app.get("/api/thinking")
+def who_is_thinking() -> dict[str, list[str]]:
+    return thinking.now()
+
+
+@app.post("/api/thinking", status_code=201)
+def set_thinking(body: ThinkingIn) -> None:
+    if not body.on:
+        thinking.stop(body.channel, body.agent_id)
+        return
+    if not body.agent_id or not agents.can_speak_in(body.agent_id, body.channel):
+        raise HTTPException(403, f"{body.agent_id} isn't in the {body.channel!r} room")
+    thinking.start(body.channel, body.agent_id)
 
 
 class ScreenIn(BaseModel):
@@ -284,6 +339,45 @@ def save_frame(data_url: str) -> str:
     name = f"{uuid.uuid4().hex}.{ext}"
     (FRAMES / name).write_bytes(raw)
     return f"/frames/{name}"
+
+
+FILE_NAME = re.compile(r"^[a-z0-9][a-z0-9._-]{0,60}\.(" + "|".join(FILE_TYPES) + ")$")
+
+
+def save_files(files: object) -> list[dict]:
+    """The files an agent made, written to disk once every one checks out, so
+    a bad one leaves nothing behind. The event keeps each one's name and
+    where to get it, never the content. Names follow crew.File's rule."""
+    if not isinstance(files, list) or len(files) > 8:
+        raise HTTPException(422, "files should be a list of at most 8")
+    for f in files:
+        name = f.get("name") if isinstance(f, dict) else None
+        if not isinstance(name, str) or not FILE_NAME.match(name) or not isinstance(f.get("content"), str):
+            raise HTTPException(422, f"can't keep a file called {name!r}")
+        if len(f["content"]) > 500_000:
+            raise HTTPException(422, f"{name} is too big to keep")
+    kept = []
+    for f in files:
+        stem, _, ext = f["name"].rpartition(".")
+        stored = f"{uuid.uuid4().hex[:12]}-{stem}.{ext}"
+        (FILES / stored).write_text(f["content"])
+        kept.append({"name": f["name"], "url": f"/files/{stored}", "type": FILE_TYPES[ext],
+                     "size": len(f["content"])})
+    return kept
+
+
+@app.get("/files/{name}")
+def get_file(name: str) -> Response:
+    """An agent's file. Served sandboxed: an html or svg it made can't run
+    scripts or reach renga, even opened in its own tab."""
+    path = FILES / name
+    ext = name.rpartition(".")[2]
+    if "/" in name or name.startswith(".") or ext not in FILE_TYPES or not path.is_file():
+        raise HTTPException(404, "no such file")
+    return Response(path.read_bytes(), media_type=FILE_TYPES[ext],
+                    headers={"Content-Security-Policy": "sandbox; default-src 'none'; "
+                                                        "style-src 'unsafe-inline'; img-src data:; font-src data:",
+                             "X-Content-Type-Options": "nosniff"})
 
 
 @app.post("/api/screen", status_code=201)

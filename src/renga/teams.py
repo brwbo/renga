@@ -2,7 +2,9 @@
 later. Each team is a row holding the team, its rooms and the agents it
 started with, so a team is written in one go and never half made. The
 built-in teams in agents.py are not stored here, but agents and rooms added
-to them are. A workflow's rooms and their agents are also written in one go."""
+to them are. A workflow's rooms and their agents are also written in one go.
+Every team, built in or not, can have a context: a markdown doc (a
+design.md, a brand guide, the audience) every agent in the team reads."""
 
 import json
 import re
@@ -37,6 +39,11 @@ CREATE TABLE IF NOT EXISTS added_rooms (
     id TEXT PRIMARY KEY,
     created_ts INTEGER NOT NULL,
     data TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS context (
+    team TEXT PRIMARY KEY,
+    updated_ts INTEGER NOT NULL,
+    text TEXT NOT NULL
 );
 """
 
@@ -197,6 +204,18 @@ class TeamStore:
                 conn.executemany("INSERT INTO added_agents (id, created_ts, data) VALUES (?, ?, ?)",
                                  [(a.id, now, json.dumps(a.model_dump())) for a in agents])
 
+    # ---- the team's context -----------------------------------------------
+    def context(self, team_id: str) -> str:
+        with self._connect() as conn:
+            row = conn.execute("SELECT text FROM context WHERE team = ?", (team_id,)).fetchone()
+        return row[0] if row else ""
+
+    def set_context(self, team_id: str, text: str) -> None:
+        with self._lock, self._connect() as conn:
+            conn.execute("INSERT INTO context (team, updated_ts, text) VALUES (?, ?, ?) "
+                         "ON CONFLICT(team) DO UPDATE SET updated_ts = excluded.updated_ts, "
+                         "text = excluded.text", (team_id, int(time.time() * 1000), text))
+
     # ---- deleting ---------------------------------------------------------
     # A team or agent made here is deleted outright. A built-in one lives in
     # the code, so it's written down as removed and the lookups hide it. The
@@ -213,6 +232,7 @@ class TeamStore:
             gone = conn.execute("DELETE FROM teams WHERE id = ?", (team_id,)).rowcount
             if not gone:
                 conn.execute("INSERT OR IGNORE INTO removed (kind, id) VALUES ('team', ?)", (team_id,))
+            conn.execute("DELETE FROM context WHERE team = ?", (team_id,))
             conn.executemany("DELETE FROM added_rooms WHERE id = ?", [(r,) for r in room_ids])
             for (id_, data) in conn.execute("SELECT id, data FROM added_agents").fetchall():
                 if json.loads(data)["room"] in room_ids:

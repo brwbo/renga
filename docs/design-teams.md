@@ -77,23 +77,22 @@ reads the meeting.
 ## the meeting workflow
 
 **meeting to design and marketing** connects a meeting to the teams. it
-sets up three rooms:
+sets up two rooms (design is part of marketing, so one room does both):
 
 | room | who | lead |
 |---|---|---|
 | `#meeting` | listener, project manager | project manager |
-| `#design` | creative director, graphic designer, ux designer, motion designer | creative director |
-| `#marketing` | marketing strategist, copywriter, social media designer, content strategist | marketing strategist |
+| `#marketing` | marketing strategist, copywriter, graphic designer, motion designer, social media designer, content strategist | marketing strategist |
 
 1. **the listener hears the call.** it has the captions sense, so the chrome
    extension posts meet's captions into `#meeting` as the listener. you can
    also type into `#meeting` yourself.
-2. **the project manager reads it.** once the meeting pauses (15 seconds
-   with nothing new) or 8 lines have piled up, it reads what's new, with
-   what was said before as context. lines it already handed off are marked,
-   so it doesn't send the same thing twice.
-3. **it hands work to a team.** anything that needs doing becomes a brief
-   for `#design` or `#marketing`, with who asked, the numbers and dates said,
+2. **the listener sends the actions.** once the meeting pauses (15 seconds
+   with nothing new) or 8 lines have piled up, it reads what's new and sends
+   the project manager each thing that needs doing, as an `action:` line.
+   actions it already sent are marked, so it doesn't send one twice.
+3. **the project manager hands it to marketing.** each action becomes a brief
+   for `#marketing`, with who asked, the numbers and dates said,
    and what done looks like. it says in `#meeting` what it sent where. when
    nothing needs doing, it sends nothing.
 4. **the team does it.** the brief lands with that room's lead, and the crew
@@ -127,15 +126,15 @@ once per machine.
    hasn't logged in yet: run the `modal token new` line above.
 
 3. give the agents a model key, as a modal secret in that workspace. the
-   key lives in modal, never in this repo. use claude or gemini:
+   key lives in modal, never in this repo. gemini is the default, claude works too:
 
    ```bash
-   # claude (the default)
-   .venv/bin/modal secret create anthropic ANTHROPIC_API_KEY=...
-
-   # or gemini: a key from https://aistudio.google.com/apikey
+   # gemini (the default): a key from https://aistudio.google.com/apikey
    .venv/bin/modal secret create gemini GEMINI_API_KEY=...
-   export RENGA_MODEL=google:gemini-3.1-pro-preview
+
+   # or claude
+   .venv/bin/modal secret create anthropic ANTHROPIC_API_KEY=...
+   export RENGA_MODEL=anthropic:claude-sonnet-5
    ```
 
    to keep the key out of your shell history, put it in `.env` instead
@@ -212,7 +211,7 @@ real brief to the brand campaign team.
 
 | | |
 |---|---|
-| `RENGA_MODEL` | the model every agent uses. default `anthropic:claude-sonnet-5`; `google:gemini-3.1-pro-preview` for gemini. passed into the sandbox when it's created |
+| `RENGA_MODEL` | the model every agent uses. default `google:gemini-3.1-pro-preview`; `anthropic:claude-sonnet-5` for claude. passed into the sandbox when it's created |
 | `LOGFIRE_TOKEN` | add it to the model's modal secret (`anthropic` or `gemini`) to trace the agents' runs in logfire |
 | `RENGA_BRAINS` | `modal` starts the agents' host inside the renga server |
 | `RENGA_URL` | where the host in the server finds renga. default `http://localhost:8020` |

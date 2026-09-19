@@ -21,7 +21,7 @@ from pydantic_ai.models import Model
 from .presets import Preset, agent_id
 from .roles import ROLES, RoleId
 
-DEFAULT_MODEL = "anthropic:claude-sonnet-5"
+DEFAULT_MODEL = "google:gemini-3.1-pro-preview"
 
 
 # ---- the hand-offs ---------------------------------------------------------
@@ -47,9 +47,22 @@ class Plan(BaseModel):
     assignments: list[Assignment] = Field(min_length=1)
 
 
+class File(BaseModel):
+    """Something you made, as a file the room can open: what you'd show a
+    person, not a description of it."""
+
+    name: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]{0,60}\.(svg|html|md|txt|csv|json|css)$",
+                      description="lowercase file name, e.g. hero.svg, landing.html, post.md")
+    content: str = Field(max_length=200_000, description="the whole file. svg and html self-contained: "
+                                                          "inline styles, no scripts, no outside links")
+
+
 class Work(BaseModel):
     say: str = Field(description="one or two short lines to the room: what you made")
     deliverable: str = Field(description="the work itself, in markdown")
+    files: list[File] = Field(default_factory=list, max_length=4,
+                              description="what you made, as files: a visual as an svg, a page or "
+                                          "layout as one html file, copy as markdown")
     ask: Ask | None = None
 
 
@@ -69,7 +82,7 @@ class Line(BaseModel):
 
     agent_id: str
     channel: str
-    kind: Literal["chat", "announce_start", "announce_done", "task", "question", "delegate"]
+    kind: Literal["chat", "announce_start", "announce_done", "task", "question", "delegate", "thinking"]
     text: str
     to: str | None = None  # for a delegate line: the room it goes to
     data: dict | None = None
@@ -77,6 +90,8 @@ class Line(BaseModel):
 
     def request(self) -> tuple[str, dict]:
         """The path and body that post this line to renga."""
+        if self.kind == "thinking":
+            return "/api/thinking", {"agent_id": self.agent_id, "channel": self.channel}
         if self.kind == "delegate":
             return "/api/delegate", {"from_agent": self.agent_id, "room": self.to,
                                      "text": self.text, "data": self.data}
@@ -108,18 +123,30 @@ HOUSE_RULES = """\
 ## the room
 you work in a group chat with the rest of your team. `say` is what you post:
 one or two short, plain lowercase lines, the way a person would write in a
-chat. the work itself goes in `deliverable`. nothing is sent, posted or
+chat. the work itself goes in `deliverable`, and what you made goes in
+`files` so the room sees it, not a description of it: a visual as an svg, a
+page, email or layout as one html file, copy as markdown. nothing is sent, posted or
 published: everything is a draft for a person to approve. when something you
 need is missing, make your best assumption, state it in the work and put the
 question in `ask` instead of stopping."""
 
 
+def about(context: str) -> str:
+    """The team's context (its design.md, brand guide, audience), for an
+    agent's instructions. Empty when the team has none."""
+    if not context.strip():
+        return ""
+    return ("\n\n## the team's context\n\nwhat the team has written down about itself. "
+            "keep to it; where it's silent, say what you assumed.\n\n" + context.strip())
+
+
 class Crew:
     def __init__(self, preset: Preset, room: str | None = None,
-                 model: Model | str | None = None, ids: dict[str, str] | None = None):
+                 model: Model | str | None = None, ids: dict[str, str] | None = None,
+                 context: str = ""):
         """`ids` maps each role to its agent id in renga, for a room whose
-        agents aren't named `<preset>-<role>`."""
-        self.preset = preset
+        agents aren't named `<preset>-<role>`. `context` is the team's."""
+        self.preset, self.context = preset, context
         self.room = room or preset.id
         self.lead = preset.lead
         self.ids = ids or {}
@@ -145,7 +172,7 @@ class Crew:
         text = (f"{me.instructions()}\n\n## you\n\n{self.preset.member(role).character().voice()}\n\n"
                 f"## your team\n\nyou're the {me.name} in #{self.room}, a design team that "
                 f"does {self.preset.does}. the lead is the {ROLES[self.lead].name}. "
-                f"the others:\n{others}\n\n{HOUSE_RULES}")
+                f"the others:\n{others}\n\n{HOUSE_RULES}{about(self.context)}")
         if lead == "plan":
             text += ("\n\n## now: plan\n\nyou lead this room. split the brief into assignments, "
                      "one per person, only for the people the work needs. use `after` for work "
@@ -181,14 +208,17 @@ class Crew:
         return (await self.members[role].run(prompt)).output
 
     def _done(self, role: str, work: Work) -> list[Line]:
-        lines = [self._line(role, "announce_done", work.say,
-                            data={"deliverable": work.deliverable})]
+        data = {"deliverable": work.deliverable}
+        if work.files:
+            data["files"] = [f.model_dump() for f in work.files]
+        lines = [self._line(role, "announce_done", work.say, data=data)]
         if work.ask:
             lines.append(self._line(role, "question", work.ask.text, options=work.ask.options))
         return lines
 
     async def run(self, brief: str) -> AsyncIterator[Line]:
         yield self._line(self.lead, "announce_start", "reading the brief")
+        yield self._line(self.lead, "thinking", "")
         plan = (await self.planner.run(f"the brief:\n\n{brief}")).output
         yield self._line(self.lead, "chat", plan.say, data={"plan": plan.model_dump()})
 
@@ -196,6 +226,8 @@ class Crew:
         for wave in waves(plan.assignments):
             for a in wave:
                 yield self._line(self.lead, "task", a.task, to=self.id(a.role))
+            for a in wave:
+                yield self._line(a.role, "thinking", "")
             prompts = [self._brief(brief, a.task, {f"from the {ROLES[r].name}": done[r]
                                                    for r in a.after})
                        for a in wave]
@@ -206,6 +238,7 @@ class Crew:
                 for line in self._done(a.role, work):
                     yield line
 
+        yield self._line(self.lead, "thinking", "")
         review = (await self.reviewer.run(self._brief(
             brief, "review the work", {f"from the {ROLES[r].name}": w for r, w in done.items()}))).output
         yield self._line(self.lead, "chat", review.say, data={"review": review.model_dump()})
@@ -213,6 +246,8 @@ class Crew:
         if not review.approved and notes:
             for n in notes:
                 yield self._line(self.lead, "task", n.note, to=self.id(n.role))
+            for n in notes:
+                yield self._line(n.role, "thinking", "")
             results = await asyncio.gather(*(
                 self._work(n.role, self._brief(brief, f"the lead's note on your work: {n.note}",
                                                {"your last version": done[n.role]}))

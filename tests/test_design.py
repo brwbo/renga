@@ -61,7 +61,7 @@ def test_waves_follow_the_dependencies():
                Assignment(role="researcher", task="x", after=["copywriter"])])
 
 
-# ---- a whole team, with a scripted model instead of claude -----------------
+# ---- a whole team, with a scripted model instead of gemini -----------------
 def scripted(calls: list[str]):
     """Answers as whichever part of the crew is asking: the lead's plan (the
     first try names someone off the team, to check it gets sent back), the
@@ -106,6 +106,9 @@ def test_a_team_plans_works_reviews_and_revises():
     lines = run(crew, "a linkedin post about onboarding in a day")
     assert calls[:2] == ["plan", "plan"]  # the print designer isn't on this team
     assert calls.count("review") == 1 and calls.count("work") == 3  # copy, image, copy again
+    thinking = [line.agent_id.removeprefix("brand-campaign-") for line in lines if line.kind == "thinking"]
+    assert thinking.count("creative-director") == 2 and "copywriter" in thinking  # plan, review; the work
+    lines = [line for line in lines if line.kind != "thinking"]
     who = [(line.agent_id.removeprefix("brand-campaign-"), line.kind) for line in lines]
     assert who[:3] == [("creative-director", "announce_start"), ("creative-director", "chat"),
                        ("creative-director", "task")]
@@ -126,7 +129,8 @@ def test_everything_a_team_says_lands_in_its_room(client):
         path, body = line.request()
         assert client.post(path, json=body).status_code == 201, body
     events = client.get("/api/events?channel=design").json()
-    assert len(events) == len(lines)
+    assert len(events) == len([line for line in lines if line.kind != "thinking"])
+    assert client.get("/api/thinking").json() == {}  # everyone who thought has since said something
     assert [q["agent_id"] for q in client.get("/api/questions").json()] == ["design-copywriter"]
 
 
@@ -155,8 +159,9 @@ def test_what_the_sandbox_prints_gets_posted_into_the_room(client):
     out = [o + "\n" for o in asyncio.run(printed())] + ["\n"]
     posted = pump(out, lambda path, body: client.post(path, json=body).raise_for_status())
     assert posted == len(out) - 1
-    # not watched, so nothing goes to #logfire: only the crew's own lines
-    assert len(client.get("/api/events?channel=design").json()) == posted
+    # not watched, so nothing goes to #logfire: only the crew's own lines, less the thinking marks
+    thought = sum('"kind":"thinking"' in o for o in out)
+    assert thought and len(client.get("/api/events?channel=design").json()) == posted - thought
     assert client.get("/api/events?channel=logfire").json() == []
     assert len(client.get("/api/questions").json()) == 1
 
@@ -175,9 +180,9 @@ def test_the_model_picks_the_key_and_the_host(monkeypatch):
     assert sandbox.provider("google:gemini-3.1-pro-preview") == ("gemini", "generativelanguage.googleapis.com")
     with pytest.raises(SystemExit):
         sandbox.provider("openai:gpt-5")
-    claude = sandbox.version()
-    monkeypatch.setenv("RENGA_MODEL", "google:gemini-3.1-pro-preview")
-    assert sandbox.version() != claude  # a new model gets a new sandbox
+    gemini = sandbox.version()
+    monkeypatch.setenv("RENGA_MODEL", "anthropic:claude-sonnet-5")
+    assert sandbox.version() != gemini  # a new model gets a new sandbox
 
 
 def test_the_logfire_agent_posts_each_run_into_its_room(client):

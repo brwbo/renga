@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/work.css">
 </head>
 <body>
 
@@ -121,6 +122,10 @@
       <a id="team-repo" class="repo" target="_blank" rel="noopener"></a>
     </div>
 
+    <button type="button" id="context-open" class="context-btn" aria-haspopup="dialog">
+      <span>context</span><span id="context-state" class="context-state"></span>
+    </button>
+
     <h2 class="label">rooms</h2>
     <nav id="rooms" class="rooms"></nav>
   </aside>
@@ -137,6 +142,8 @@
     <div id="error" class="err" role="alert" hidden></div>
 
     <div id="log" class="log" aria-live="polite"></div>
+
+    <div id="thinking" class="thinking" role="status" aria-live="polite" hidden></div>
 
     <form id="composer" class="composer">
       <label for="c-input" class="sr">message</label>
@@ -174,7 +181,24 @@
   </aside>
 </div>
 
+<dialog id="context-dialog" class="context-dialog" aria-labelledby="context-title">
+  <form id="context-form" method="dialog">
+    <h2 id="context-title">context</h2>
+    <p class="context-lede">what every agent in <b id="context-team"></b> reads before it works: a design.md, the brand, the voice, the audience, links. markdown.</p>
+    <textarea id="context-text" name="text" rows="18" maxlength="50000" spellcheck="true"
+      placeholder="# brand&#10;&#10;lowercase, plain, no exclamation marks.&#10;&#10;# colours&#10;&#10;ink #111, paper #faf9f6, one accent #3d5afe"></textarea>
+    <p id="context-error" class="form-err" role="alert" hidden></p>
+    <div class="form-actions">
+      <button type="submit" value="save" class="btn primary">save</button>
+      <label class="btn ghost file-pick">load a .md file<input type="file" id="context-file" accept=".md,.markdown,.txt,text/markdown,text/plain"></label>
+      <button type="button" id="context-cancel" class="btn ghost">cancel</button>
+    </div>
+  </form>
+</dialog>
+
 <script src="/app.js"></script>
 <script src="/library.js"></script>
+<script src="/work.js"></script>
+<script src="/thinking.js"></script>
 </body>
 </html>

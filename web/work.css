@@ -1,0 +1,97 @@
+/* the team's context button and dialog, and the work agents post: files as
+   previews under the line that says they're done. uses style.css's system. */
+
+/* ----------------------------------------------------------------- context */
+.context-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 10px 0 0; padding: 6px 8px; width: 100%;
+  border: 1px solid var(--line); border-radius: var(--r1); background: var(--raised);
+  font-weight: 500; text-align: left;
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.context-btn:hover { border-color: var(--ink-3); }
+.context-state { font-weight: 400; color: var(--ink-3); }
+.context-btn.empty .context-state { color: var(--group); }
+
+.context-dialog {
+  width: min(720px, calc(100vw - 32px)); max-height: calc(100dvh - 32px);
+  padding: 20px; border: 1px solid var(--line); border-left: 2px solid var(--group);
+  border-radius: var(--r2); background: var(--raised); color: var(--ink);
+}
+.context-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+.context-dialog h2 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.context-lede { margin: 0 0 12px; color: var(--ink-2); }
+.context-dialog textarea {
+  display: block; width: 100%; min-height: 280px; resize: vertical; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: var(--r1); background: var(--surface); color: var(--ink);
+  font: 400 12px/1.55 ui-monospace, 'IBM Plex Mono', monospace;
+}
+.context-dialog textarea:focus { outline: 2px solid var(--group); outline-offset: 1px; }
+.file-pick { display: inline-flex; align-items: center; cursor: pointer; }
+.file-pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.file-pick:focus-within { outline: 2px solid var(--group); outline-offset: 2px; }
+
+/* -------------------------------------------------------------------- work */
+.work-files {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 240px)); gap: 8px;
+  margin: 4px 0 6px 48px;
+}
+.file {
+  display: flex; flex-direction: column; overflow: hidden; text-decoration: none;
+  border: 1px solid var(--line); border-radius: var(--r1); background: var(--raised);
+  transition: border-color var(--t-fast) var(--ease);
+}
+.file:hover { border-color: var(--ink-3); }
+.file-view {
+  position: relative; aspect-ratio: 4 / 3; overflow: hidden;
+  display: grid; place-items: center; background: var(--surface);
+}
+.file-view img { display: block; max-width: 100%; max-height: 100%; }
+/* a page, rendered at desktop width and scaled down to a thumbnail */
+.file-view.page iframe {
+  position: absolute; top: 0; left: 0; width: 400%; height: 400%;
+  border: 0; transform: scale(.25); transform-origin: 0 0; pointer-events: none; background: #fff;
+}
+.file-view.doc { font: 600 15px var(--ui); color: var(--group); }
+.file-name {
+  padding: 6px 8px; border-top: 1px solid var(--line); color: var(--ink-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.work-text { margin: 0 0 8px 48px; }
+.work-text summary { cursor: pointer; color: var(--ink-3); width: max-content; }
+.work-text summary:hover { color: var(--ink); }
+.work-text .tx {
+  margin-top: 6px; padding: 10px 12px; max-height: 320px; overflow: auto; white-space: pre-wrap;
+  border: 1px solid var(--line); border-radius: var(--r1); background: var(--raised);
+}
+
+@media (max-width: 760px) {
+  .context-btn { width: auto; margin: 0; white-space: nowrap; }
+  .work-files, .work-text { margin-left: 0; }
+  .work-files { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ---------------------------------------------------------------- thinking */
+/* who is working on a reply, above the composer: faces, a line, three dots */
+.thinking {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  color: var(--ink-2); animation: in var(--t-base) var(--ease);
+}
+.thinking-faces { display: flex; }
+.thinking-faces .av + .av { margin-left: -6px; box-shadow: 0 0 0 2px var(--surface); }
+.thinking .dots { display: inline-flex; gap: 3px; align-items: center; height: 16px; }
+.thinking .dots i {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--group);
+  animation: think 1.2s var(--ease) infinite;
+}
+.thinking .dots i:nth-child(2) { animation-delay: .15s; }
+.thinking .dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes think {
+  0%, 60%, 100% { transform: translateY(0); opacity: .35; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thinking .dots i { animation: none; opacity: .7; }
+}
+.room > .thinking { padding: 4px 28px 8px; }
+@media (max-width: 760px) { .room > .thinking { padding: 4px 16px 8px; } }

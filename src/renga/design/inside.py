@@ -22,6 +22,7 @@ from opentelemetry.trace import StatusCode
 
 from .crew import Crew, Line
 from .jobs import Job
+from .listener import Listener
 from .router import Router
 
 ROOM = "logfire"  # the room and the agent that posts the traces
@@ -70,10 +71,13 @@ def _run_line(room: str, trace_id: str, run: dict) -> str:
 async def stream(job: Job, model=None) -> AsyncIterator[str]:
     room, runs = job.room, []
     if job.kind == "crew":
-        lines = Crew(job.team, room=room, model=model, ids=job.ids).run(job.brief)
+        lines = Crew(job.team, room=room, model=model, ids=job.ids, context=job.context).run(job.brief)
         doing, started = "works on a brief", "started on a brief"
+    elif job.kind == "listener":
+        lines = Listener(room, job.listener, job.pm, model=model, context=job.context).run(job.seen, job.new)
+        doing, started = "listens for actions", "is listening for actions"
     else:
-        lines = Router(room, job.pm, job.targets, model=model).run(job.seen, job.new)
+        lines = Router(room, job.pm, job.targets, model=model, context=job.context).run(job.seen, job.new)
         doing, started = "reads the meeting", "is reading the meeting"
     with attach_context({"traceparent": job.traceparent} if job.traceparent else {}), \
             logfire.span("#{room} " + doing, room=room, kind=job.kind) as span:

@@ -3,9 +3,10 @@ any team in one go. Starting one makes its rooms and agents; the agents' host
 (design/sandbox.py listen) runs them.
 
 The meeting workflow is the connector between a meeting and the teams: the
-listener hears the call and posts it in the meeting room, the project manager
-reads that and hands anything that needs doing to the design or marketing
-room, whose lead splits it across the room and has it done."""
+listener hears the call, posts it in the meeting room and sends the project
+manager each action it hears; the project manager hands each one to the
+marketing room, whose lead splits it across the room and has it done. Design
+is part of marketing: one room does the copy, the visuals and the social."""
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -54,27 +55,23 @@ def _m(role: str, *traits: str) -> Member:
 
 
 MEETING = Workflow(
-    id="meeting-to-teams", name="meeting to design and marketing",
-    does="a listener hears the meeting, a project manager turns what's said into briefs "
-         "and hands them to the design and marketing rooms, who do the work",
+    id="meeting-to-marketing", name="meeting to marketing",
+    does="a listener hears the meeting and sends the actions it needs, a project manager "
+         "turns them into briefs for the marketing room, who do the work",
     how=["the listener posts what's said in the meeting, through the chrome extension",
-         "when the meeting pauses, the project manager reads what's new",
-         "anything that needs doing goes to #design or #marketing as a brief",
-         "that room's lead splits it across the room, and the drafts come back to you"],
+         "when the meeting pauses, the listener sends the project manager each action it heard",
+         "the project manager hands each action to #marketing as a brief",
+         "the marketing lead splits it across the room, and the drafts come back to you"],
     rooms=[
         RoomPlan(name="meeting", lead="project-manager",
                  purpose="hears the meeting and hands out what needs doing",
                  members=[_m("listener"), _m("project-manager", "stoic", "methodical", "leader", "judging")]),
-        RoomPlan(name="design", lead="creative-director",
-                 purpose="visuals, layouts, product and brand design",
-                 members=[_m("creative-director", "intense", "big-picture", "leader", "judging"),
-                          _m("graphic-designer", "stoic", "perfectionist", "introvert", "thinking"),
-                          _m("ux-designer", "chill", "iterative", "collaborator", "feeling"),
-                          _m("motion-designer", "enthusiastic", "chaotic-creative", "extrovert", "risk-taker")]),
         RoomPlan(name="marketing", lead="marketing-strategist",
-                 purpose="campaigns, copy, social and content",
+                 purpose="campaigns, copy, visuals, social and content",
                  members=[_m("marketing-strategist", "intense", "big-picture", "leader", "thinking"),
                           _m("copywriter", "sassy", "fast-shipper", "extrovert", "risk-taker"),
+                          _m("graphic-designer", "stoic", "perfectionist", "introvert", "thinking"),
+                          _m("motion-designer", "enthusiastic", "chaotic-creative", "extrovert", "risk-taker"),
                           _m("social-media-designer", "enthusiastic", "fast-shipper", "collaborator", "optimist"),
                           _m("content-strategist", "nurturing", "methodical", "mentor", "judging")]),
     ],

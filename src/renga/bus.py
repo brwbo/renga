@@ -48,6 +48,7 @@ async def emit(
     """Append to the log, then push to whoever is listening. The span records
     the shape of the conversation (who to whom, which kind), never the text."""
     from .db import store
+    from .thinking import thinking
 
     with logfire.span("{kind} {channel}", kind=kind, channel=channel,
                       sender=from_, recipient=to,
@@ -55,4 +56,5 @@ async def emit(
         event = store.append(channel, kind, from_=from_, to=to, text=text, data=data)
         Event.model_validate(event)
         await bus.broadcast(event)
+    thinking.stop(channel, from_)  # said it, so done thinking
     return event

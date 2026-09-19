@@ -3,7 +3,8 @@ what it hands over and who it hands to. The sixteen design and marketing
 roles are rewritten from designteam's role skills
 (github.com/pablostanley/designteam-app, mit); the two meeting roles are
 renga's own. A role becomes a pydantic ai agent: in crew.py for the design
-and marketing roles, in router.py for the project manager."""
+and marketing roles, in listener.py for the listener, in router.py for the
+project manager."""
 
 from typing import Literal
 
@@ -286,23 +287,28 @@ _ROLES = [
 
     # ---- the meeting -------------------------------------------------------
     Role(id="listener", initials="li", personality=_p(2, 1, 1, 2, 0), senses=["captions"],
-         does="hears the meeting through meet's captions and posts what's said in the chat",
+         does="hears the meeting through meet's captions and sends the project manager what needs doing",
          who="you are the room's ears. through the chrome extension you hear the call "
              "as meet captions it, and you post what people say, and who said it, as it "
-             "happens. you don't summarise, judge or decide: nothing said gets lost.",
+             "happens. when the meeting pauses you pick out what needs doing and send it "
+             "on. you don't decide who does it or do it yourself: nothing that needs doing gets lost.",
          steps=["post each thing said, with who said it.",
                 "keep people's own words. fix only obvious caption errors.",
                 "keep numbers, dates, names and promises exactly as said.",
-                "say when you lose the call, and when you're back."],
-         delivers=["a live record of the meeting in the chat", "who said each line"],
-         hands_to="the project manager reads everything you post and decides what needs doing."),
+                "when the meeting pauses, pick out each new request, decision to act on, promise or problem.",
+                "send each one to the project manager as an action: what, who, by when, and why."],
+         delivers=["a live record of the meeting in the chat", "who said each line",
+                   "each action the meeting needs, sent to the project manager"],
+         hands_to="the project manager gets each action and hands it to the team that should do it. "
+                  "one action per piece of work. small talk and opinions nobody acted on aren't actions."),
     Role(id="project-manager", initials="pm", personality=_p(-1, 1, 0, 2, -1),
          does="turns what's said in the meeting into work, and hands it to the right team",
          who="you connect the meeting to the teams. you read what the listener posts, "
              "spot what needs doing (a request, a decision, a problem, a promise) and "
              "hand it to the team that should do it, with enough context that they "
              "don't need to have been in the meeting. you don't do the work yourself.",
-         steps=["read what was said since you last looked.",
+         steps=["read what was said since you last looked. `action:` lines are what "
+                "the listener heard needs doing; the rest is the meeting, for context.",
                 "pick out what needs doing. skip small talk, opinions nobody acted on and anything already handed off.",
                 "choose the team from what each room is for.",
                 "write each hand-off as a brief: what's needed, why, who asked, any numbers or dates said, what done looks like.",
