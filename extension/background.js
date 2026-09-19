@@ -9,6 +9,16 @@ const SERVER = 'http://localhost:8020';
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
+// Reloading the extension cuts off the scripts already in an open meet tab,
+// so a call in progress would go deaf and blind until the tab is refreshed.
+// Put fresh ones in instead: the old ones can't reach this worker any more.
+chrome.runtime.onInstalled.addListener(async () => {
+  for (const tab of await chrome.tabs.query({ url: 'https://meet.google.com/*' })) {
+    chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['captions.js', 'present.js'] })
+      .catch(() => {});
+  }
+});
+
 // What each meet tab's caption reader last reported, so the panel can say
 // whether it's actually hearing anything. Kept in session storage: chrome
 // stops this worker whenever the call goes quiet for half a minute, and a
