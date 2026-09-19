@@ -1,8 +1,8 @@
-"""What runs inside a team's sandbox on modal. Reads a brief on stdin, runs
-the team, and prints each Line as one line of json on stdout for the host
-(sandbox.py) to post into renga.
+"""What runs inside a room's sandbox on modal. Reads one Job (jobs.py) as
+json on stdin, runs it, and prints each Line as one line of json on stdout
+for the host (sandbox.py) to post into renga.
 
-    echo "a linkedin post" | python -m renga.design.inside brand-campaign [room]
+    python -m renga.design.inside < job.json
 """
 
 import asyncio
@@ -10,17 +10,21 @@ import sys
 from collections.abc import AsyncIterator
 
 from .crew import Crew
-from .presets import PRESETS_BY_ID
+from .jobs import Job
+from .router import Router
 
 
-async def stream(preset: str, room: str, brief: str, model=None) -> AsyncIterator[str]:
-    crew = Crew(PRESETS_BY_ID[preset], room=room or None, model=model)
-    async for line in crew.run(brief):
+async def stream(job: Job, model=None) -> AsyncIterator[str]:
+    if job.kind == "crew":
+        lines = Crew(job.team, room=job.room, model=model, ids=job.ids).run(job.brief)
+    else:
+        lines = Router(job.room, job.pm, job.targets, model=model).run(job.seen, job.new)
+    async for line in lines:
         yield line.model_dump_json()
 
 
-async def main(preset: str, room: str = "") -> None:
-    async for out in stream(preset, room, sys.stdin.read()):
+async def main() -> None:
+    async for out in stream(Job.model_validate_json(sys.stdin.read())):
         print(out, flush=True)
 
 
@@ -29,4 +33,4 @@ if __name__ == "__main__":
 
     logfire.configure(send_to_logfire="if-token-present", console=False)
     logfire.instrument_pydantic_ai()
-    asyncio.run(main(*sys.argv[1:3]))
+    asyncio.run(main())

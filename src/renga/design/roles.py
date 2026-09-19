@@ -1,7 +1,9 @@
-"""The sixteen people a design team can hire. Each role is what it does, how
-it works, what it hands over and who it hands to, rewritten from designteam's
-role skills (github.com/pablostanley/designteam-app, mit). A role becomes a
-pydantic ai agent in crew.py."""
+"""Everyone in the agent library. Each role is what it does, how it works,
+what it hands over and who it hands to. The sixteen design and marketing
+roles are rewritten from designteam's role skills
+(github.com/pablostanley/designteam-app, mit); the two meeting roles are
+renga's own. A role becomes a pydantic ai agent: in crew.py for the design
+and marketing roles, in router.py for the project manager."""
 
 from typing import Literal
 
@@ -9,12 +11,23 @@ from pydantic import BaseModel, Field
 
 from .personality import Personality
 
-RoleId = Literal[
+DesignRoleId = Literal[
     "researcher", "copywriter", "graphic-designer", "ux-designer", "ux-writer",
     "editorial-designer", "social-media-designer", "creative-director",
     "design-engineer", "brand-strategist", "marketing-strategist", "print-designer",
     "motion-designer", "accessibility-specialist", "content-strategist", "seo-specialist",
 ]
+RoleId = Literal[DesignRoleId, "listener", "project-manager"]
+
+Group = Literal["meeting", "design", "marketing"]
+GROUPS: dict[str, Group] = {
+    **dict.fromkeys(["listener", "project-manager"], "meeting"),
+    **dict.fromkeys(["researcher", "graphic-designer", "ux-designer", "ux-writer",
+                     "editorial-designer", "creative-director", "print-designer",
+                     "motion-designer", "accessibility-specialist", "design-engineer"], "design"),
+    **dict.fromkeys(["copywriter", "social-media-designer", "brand-strategist",
+                     "marketing-strategist", "content-strategist", "seo-specialist"], "marketing"),
+}
 
 
 class Role(BaseModel):
@@ -26,10 +39,15 @@ class Role(BaseModel):
     delivers: list[str] = Field(min_length=2)
     hands_to: str  # who gets your work and what they need from it
     personality: Personality
+    senses: list[Literal["captions", "screen"]] = Field(default_factory=list)
 
     @property
     def name(self) -> str:
         return self.id.replace("-", " ")
+
+    @property
+    def group(self) -> Group:
+        return GROUPS[self.id]
 
     def instructions(self) -> str:
         steps = "\n".join(f"{i}. {s}" for i, s in enumerate(self.steps, 1))
@@ -265,6 +283,33 @@ _ROLES = [
                 "plan which pages need refreshing and when."],
          delivers=["a keyword map", "on-page specs per page", "structured data and a technical checklist"],
          hands_to="writers get the primary and secondary keywords, the intent and the angle that would win, not just a list."),
+
+    # ---- the meeting -------------------------------------------------------
+    Role(id="listener", initials="li", personality=_p(2, 1, 1, 2, 0), senses=["captions"],
+         does="hears the meeting through meet's captions and posts what's said in the chat",
+         who="you are the room's ears. through the chrome extension you hear the call "
+             "as meet captions it, and you post what people say, and who said it, as it "
+             "happens. you don't summarise, judge or decide: nothing said gets lost.",
+         steps=["post each thing said, with who said it.",
+                "keep people's own words. fix only obvious caption errors.",
+                "keep numbers, dates, names and promises exactly as said.",
+                "say when you lose the call, and when you're back."],
+         delivers=["a live record of the meeting in the chat", "who said each line"],
+         hands_to="the project manager reads everything you post and decides what needs doing."),
+    Role(id="project-manager", initials="pm", personality=_p(-1, 1, 0, 2, -1),
+         does="turns what's said in the meeting into work, and hands it to the right team",
+         who="you connect the meeting to the teams. you read what the listener posts, "
+             "spot what needs doing (a request, a decision, a problem, a promise) and "
+             "hand it to the team that should do it, with enough context that they "
+             "don't need to have been in the meeting. you don't do the work yourself.",
+         steps=["read what was said since you last looked.",
+                "pick out what needs doing. skip small talk, opinions nobody acted on and anything already handed off.",
+                "choose the team from what each room is for.",
+                "write each hand-off as a brief: what's needed, why, who asked, any numbers or dates said, what done looks like.",
+                "say in the meeting chat what you sent where, in a line."],
+         delivers=["briefs handed to the right team", "a line in the meeting saying what went where"],
+         hands_to="each brief goes to the lead of a team's room, who splits it across their people. "
+                  "one brief per piece of work. when nothing needs doing, hand nothing off."),
 ]
 
 ROLES: dict[str, Role] = {r.id: r for r in _ROLES}

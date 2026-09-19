@@ -10,12 +10,14 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from renga.design.crew import Assignment, Crew, Line, waves
 from renga.design.personality import Character, Personality, voice
 from renga.design.presets import PRESETS, PRESETS_BY_ID, Member, Preset
-from renga.design.roles import ROLES, RoleId
+from renga.design.roles import ROLES, DesignRoleId
 
 
 def test_sixteen_roles_and_seven_teams():
-    assert set(ROLES) == set(get_args(RoleId)) and len(ROLES) == 16
-    assert len({r.initials for r in ROLES.values()}) == 16
+    assert len(get_args(DesignRoleId)) == 16
+    assert set(ROLES) == set(get_args(DesignRoleId)) | {"listener", "project-manager"}
+    assert len({r.initials for r in ROLES.values()}) == len(ROLES)
+    assert {r.group for r in ROLES.values()} == {"meeting", "design", "marketing"}
     assert [p.id for p in PRESETS] == ["full-studio", "landing-page-sprint", "brand-campaign",
                                        "content-machine", "product-team", "full-stack-design",
                                        "marketing-blitz"]
@@ -136,10 +138,14 @@ def test_every_team_and_member_is_in_renga(client):
 # ---- the sandbox: what runs inside it, and what posts its output ------------
 def test_what_the_sandbox_prints_gets_posted_into_the_room(client):
     from renga.design.inside import stream
+    from renga.design.jobs import crew_job
     from renga.design.sandbox import pump
 
+    room = next(r for r in client.get("/api/rooms").json() if r["id"] == "brand-campaign")
+    job = crew_job(room, client.get("/api/agents").json(), "a post")
+
     async def printed():
-        return [out async for out in stream("brand-campaign", "", "a post", model=scripted([]))]
+        return [out async for out in stream(job, model=scripted([]))]
 
     out = [o + "\n" for o in asyncio.run(printed())] + ["\n"]
     posted = pump(out, lambda path, body: client.post(path, json=body).raise_for_status())

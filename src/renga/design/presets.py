@@ -7,7 +7,7 @@ from typing import get_args
 from pydantic import BaseModel, Field, model_validator
 
 from .personality import Character, Trait
-from .roles import ROLES, Role, RoleId
+from .roles import ROLES, DesignRoleId, Role, RoleId
 
 
 class Member(BaseModel):
@@ -21,13 +21,16 @@ class Member(BaseModel):
 class Preset(BaseModel):
     id: str = Field(pattern=r"^[a-z0-9-]+$")
     does: str
-    members: list[Member] = Field(min_length=2)
+    members: list[Member] = Field(min_length=1)
+    lead_role: RoleId | None = None  # when the lead isn't worked out from the members
 
     @model_validator(mode="after")
     def _one_of_each(self) -> "Preset":
         roles = [m.role for m in self.members]
         if len(set(roles)) != len(roles):
             raise ValueError(f"{self.id} hires the same role twice")
+        if self.lead_role and self.lead_role not in roles:
+            raise ValueError(f"{self.id}'s lead isn't one of its members")
         for m in self.members:
             m.character()  # checks the traits
         return self
@@ -36,6 +39,8 @@ class Preset(BaseModel):
     def lead(self) -> RoleId:
         """The creative director when there is one, then whoever is a leader,
         then whoever is listed first."""
+        if self.lead_role:
+            return self.lead_role
         roles = [m.role for m in self.members]
         if "creative-director" in roles:
             return "creative-director"
@@ -55,7 +60,7 @@ def _team(id: str, does: str, *members: tuple[str, list[str]]) -> Preset:
 
 PRESETS: list[Preset] = [
     Preset(id="full-studio", does="the whole crew, all sixteen specialists",
-           members=[Member(role=r) for r in get_args(RoleId)]),
+           members=[Member(role=r) for r in get_args(DesignRoleId)]),
     _team("landing-page-sprint", "ships a landing page that converts, fast",
           ("researcher", ["methodical", "detail-obsessed", "introvert", "thinking"]),
           ("copywriter", ["sassy", "fast-shipper", "extrovert", "feeling"]),

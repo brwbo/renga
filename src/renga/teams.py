@@ -1,7 +1,8 @@
-"""Teams made from the teams page, and agents added to any room later. Each
-team is a row holding the team, its rooms and the agents it started with, so
-a team is written in one go and never half made. The built-in teams in
-agents.py are not stored here, but agents added to their rooms are."""
+"""Teams made from the teams page, and agents and rooms added to any team
+later. Each team is a row holding the team, its rooms and the agents it
+started with, so a team is written in one go and never half made. The
+built-in teams in agents.py are not stored here, but agents and rooms added
+to them are. A workflow's rooms and their agents are also written in one go."""
 
 import json
 import re
@@ -10,10 +11,11 @@ import threading
 import time
 from pathlib import Path
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from .agents import STARTERS, Agent, Room, Sense, Team
+from .agents import STARTERS, Agent, Room, Sense, Team, from_library
 from .db import DB_PATH
+from .design.roles import ROLES, RoleId
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS teams (
@@ -27,6 +29,11 @@ CREATE TABLE IF NOT EXISTS removed (
     PRIMARY KEY (kind, id)
 );
 CREATE TABLE IF NOT EXISTS added_agents (
+    id TEXT PRIMARY KEY,
+    created_ts INTEGER NOT NULL,
+    data TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS added_rooms (
     id TEXT PRIMARY KEY,
     created_ts INTEGER NOT NULL,
     data TEXT NOT NULL
@@ -75,17 +82,29 @@ class TeamIn(BaseModel):
 
 
 class AgentIn(BaseModel):
-    name: str = Field(min_length=1, max_length=24)
-    role: str = Field(min_length=1, max_length=200)
+    """A new agent: either from the library (`template`, with an optional
+    name), or made up (a `name` and a `role`)."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=24)
+    role: str | None = Field(default=None, min_length=1, max_length=200)
     senses: list[Sense] = Field(default_factory=list)
+    template: RoleId | None = None
 
     @field_validator("name")
     @classmethod
-    def _name(cls, v: str) -> str:
+    def _name(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
         v = v.strip().lower()
         if not slug(v):
             raise ValueError("needs at least one letter or number")
         return v
+
+    @model_validator(mode="after")
+    def _either(self) -> "AgentIn":
+        if not self.template and not (self.name and self.role):
+            raise ValueError("pick an agent from the library, or give a name and a role")
+        return self
 
 
 class TeamStore:
@@ -141,10 +160,15 @@ class TeamStore:
     def add_agent(self, body: AgentIn, room: Room, taken: set[str]) -> Agent:
         """An agent joining a room. Its id is the team's plus its name, so two
         teams can each have a `researcher`. Raises ValueError on a clash."""
-        name = slug(body.name)
-        agent = Agent(id=f"{room.team}-{name}", name=body.name, role=body.role.strip(),
-                      room=room.id, initials=name.replace("-", "")[:2] or name[:2],
-                      senses=list(dict.fromkeys(body.senses)))
+        if body.template:
+            name = slug(body.name or ROLES[body.template].name)
+            agent = from_library(body.template, f"{room.team}-{name}", room.id,
+                                 name=body.name or ROLES[body.template].name)
+        else:
+            name = slug(body.name)
+            agent = Agent(id=f"{room.team}-{name}", name=body.name, role=body.role.strip(),
+                          room=room.id, initials=name.replace("-", "")[:2] or name[:2],
+                          senses=list(dict.fromkeys(body.senses)))
         with self._lock:
             if agent.id in taken:
                 raise ValueError(f"there's already an agent called {body.name!r} in this team")
@@ -153,6 +177,25 @@ class TeamStore:
                              (agent.id, int(time.time() * 1000), json.dumps(agent.model_dump())))
         return agent
 
+    def added_rooms(self) -> list[Room]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT data FROM added_rooms ORDER BY created_ts").fetchall()
+        return [Room(**json.loads(data)) for (data,) in rows]
+
+    def add_rooms(self, rooms: list[Room], agents: list[Agent],
+                  taken_rooms: set[str], taken_agents: set[str]) -> None:
+        """Rooms and the agents in them, all or nothing. Raises ValueError
+        when any id is already taken."""
+        now = int(time.time() * 1000)
+        with self._lock:
+            clash = {r.id for r in rooms} & taken_rooms or {a.id for a in agents} & taken_agents
+            if clash:
+                raise ValueError(f"{sorted(clash)[0]!r} is already taken in this team")
+            with self._connect() as conn:
+                conn.executemany("INSERT INTO added_rooms (id, created_ts, data) VALUES (?, ?, ?)",
+                                 [(r.id, now, json.dumps(r.model_dump())) for r in rooms])
+                conn.executemany("INSERT INTO added_agents (id, created_ts, data) VALUES (?, ?, ?)",
+                                 [(a.id, now, json.dumps(a.model_dump())) for a in agents])
 
     # ---- deleting ---------------------------------------------------------
     # A team or agent made here is deleted outright. A built-in one lives in
@@ -170,6 +213,7 @@ class TeamStore:
             gone = conn.execute("DELETE FROM teams WHERE id = ?", (team_id,)).rowcount
             if not gone:
                 conn.execute("INSERT OR IGNORE INTO removed (kind, id) VALUES ('team', ?)", (team_id,))
+            conn.executemany("DELETE FROM added_rooms WHERE id = ?", [(r,) for r in room_ids])
             for (id_, data) in conn.execute("SELECT id, data FROM added_agents").fetchall():
                 if json.loads(data)["room"] in room_ids:
                     conn.execute("DELETE FROM added_agents WHERE id = ?", (id_,))

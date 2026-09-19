@@ -1,0 +1,74 @@
+"""The project manager's brain: the connector between a meeting and the teams.
+It reads what's been said in the meeting room since it last looked, decides
+what needs doing, and hands each piece to the team room that should do it.
+Each hand-off lands with that room's lead, whose crew (crew.py) does the work.
+
+    meeting lines -> project manager: Routing -> a line in the meeting
+                                              -> a brief to each team's lead"""
+
+import os
+from collections.abc import AsyncIterator
+
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent, ModelRetry
+from pydantic_ai.models import Model
+
+from .crew import DEFAULT_MODEL, Line
+from .personality import voice
+from .roles import ROLES
+
+
+class Target(BaseModel):
+    """A room the project manager can hand work to."""
+
+    room: str
+    name: str
+    purpose: str = ""
+    members: list[str] = Field(default_factory=list)  # role names, for context
+
+
+class Handoff(BaseModel):
+    room: str = Field(description="the id of the room that should do it")
+    brief: str = Field(description="what's needed, why, who asked, any numbers or dates "
+                                   "said, and what done looks like")
+
+
+class Routing(BaseModel):
+    say: str | None = Field(default=None, description="one short line to the meeting about "
+                                                      "what you sent where. empty when nothing")
+    handoffs: list[Handoff] = Field(default_factory=list)
+
+
+class Router:
+    def __init__(self, room: str, pm: str, targets: list[Target],
+                 model: Model | str | None = None):
+        self.room, self.pm, self.targets = room, pm, targets
+        model = model or os.environ.get("RENGA_MODEL", DEFAULT_MODEL)
+        me = ROLES["project-manager"]
+        rooms = "\n".join(f"- `{t.room}` (#{t.name}): {t.purpose or 'no purpose given'}. "
+                          f"in it: {', '.join(t.members) or 'nobody yet'}" for t in targets)
+        self.agent = Agent(
+            model, output_type=Routing, name="project-manager", defer_model_check=True,
+            instructions=f"{me.instructions()}\n\n## you\n\n{voice(me.personality)}\n\n"
+                         f"## the rooms you can hand work to\n\n{rooms}\n\n"
+                         "## the meeting\n\nyou sit in the meeting room. `say` is one short, "
+                         "plain lowercase line to it. nothing is sent, posted or published "
+                         "outside renga: the teams make drafts for a person to approve. lines "
+                         "you've already handed off are marked; never hand the same thing off twice.")
+        self.agent.output_validator(self._check)
+
+    def _check(self, routing: Routing) -> Routing:
+        known = {t.room for t in self.targets}
+        if bad := sorted({h.room for h in routing.handoffs} - known):
+            raise ModelRetry(f"there's no room {', '.join(bad)}. use one of: {', '.join(sorted(known))}")
+        return routing
+
+    async def run(self, seen: list[str], new: list[str]) -> AsyncIterator[Line]:
+        """`seen` is what was said before (context), `new` is what to act on."""
+        prompt = ("earlier in the meeting, already dealt with:\n\n" + ("\n".join(seen) or "(nothing)")
+                  + "\n\nsaid since you last looked:\n\n" + "\n".join(new))
+        routing = (await self.agent.run(prompt)).output
+        if routing.say:
+            yield Line(agent_id=self.pm, channel=self.room, kind="chat", text=routing.say)
+        for h in routing.handoffs:
+            yield Line(agent_id=self.pm, channel=self.room, kind="delegate", to=h.room, text=h.brief)
